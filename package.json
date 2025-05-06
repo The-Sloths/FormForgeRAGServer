@@ -1,0 +1,60 @@
+{
+  "name": "form-forge-rag-server",
+  "version": "1.0.0",
+  "description": "RAG API server using Express.js, TypeScript, LangChain.js and Supabase",
+  "main": "dist/index.js",
+  "scripts": {
+    "start": "node dist/index.js",
+    "dev": "nodemon src/index.ts",
+    "build": "tsc",
+    "lint": "eslint src --ext .ts",
+    "test": "jest"
+  },
+  "keywords": [
+    "rag",
+    "express",
+    "typescript",
+    "langchain",
+    "supabase",
+    "openapi"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@langchain/community": "^0.3.42",
+    "@langchain/core": "^0.3.53",
+    "@langchain/openai": "^0.5.10",
+    "@supabase/supabase-js": "^2.49.4",
+    "@types/pdf-parse": "^1.1.5",
+    "cors": "^2.8.5",
+    "dotenv": "^16.5.0",
+    "express": "^5.1.0",
+    "express-validator": "^7.2.1",
+    "file-type": "^20.5.0",
+    "helmet": "^8.1.0",
+    "langchain": "^0.3.24",
+    "markdown-it": "^14.1.0",
+    "morgan": "^1.10.0",
+    "multer": "1.4.5-lts.2",
+    "pdf-parse": "^1.1.1",
+    "swagger-jsdoc": "^6.2.8",
+    "swagger-ui-express": "^5.0.1",
+    "winston": "^3.17.0"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.1",
+    "@types/markdown-it": "^14.1.2",
+    "@types/morgan": "^1.9.9",
+    "@types/multer": "^1.4.12",
+    "@types/node": "^22.15.14",
+    "@types/swagger-jsdoc": "^6.0.4",
+    "@types/swagger-ui-express": "^4.1.8",
+    "@typescript-eslint/eslint-plugin": "^8.32.0",
+    "@typescript-eslint/parser": "^8.32.0",
+    "eslint": "^9.26.0",
+    "nodemon": "^3.1.10",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.8.3"
+  }
+}

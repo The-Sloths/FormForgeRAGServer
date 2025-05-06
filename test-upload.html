@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RAG File Upload Test</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    form {
+      border: 1px solid #ddd;
+      padding: 20px;
+      border-radius: 5px;
+    }
+    label {
+      display: block;
+      margin-bottom: 10px;
+    }
+    input, textarea, button {
+      width: 100%;
+      padding: 8px;
+      margin-bottom: 15px;
+    }
+    button {
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #45a049;
+    }
+    #result {
+      margin-top: 20px;
+      padding: 15px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <h1>RAG File Upload Test</h1>
+  
+  <form id="uploadForm">
+    <div>
+      <label for="file">Select PDF or Markdown File:</label>
+      <input type="file" id="file" name="file" accept=".pdf,.md,application/pdf,text/markdown" required>
+    </div>
+    
+    <div>
+      <label for="options">Options (JSON format):</label>
+      <textarea id="options" name="options" rows="5" placeholder='{"metadata":{"source":"company-docs","category":"technical"}}'></textarea>
+    </div>
+    
+    <button type="submit">Upload and Process</button>
+  </form>
+  
+  <div id="result"></div>
+  
+  <script>
+    document.getElementById('uploadForm').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      
+      const formData = new FormData();
+      const fileInput = document.getElementById('file');
+      const optionsInput = document.getElementById('options');
+      
+      formData.append('file', fileInput.files[0]);
+      if (optionsInput.value) {
+        formData.append('options', optionsInput.value);
+      }
+      
+      const resultDiv = document.getElementById('result');
+      resultDiv.style.display = 'block';
+      resultDiv.innerHTML = 'Processing...';
+      
+      try {
+        const response = await fetch('/api/files/upload', {
+          method: 'POST',
+          body: formData
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+          resultDiv.innerHTML = `
+            <h3>Success!</h3>
+            <p>${data.message}</p>
+            <pre>${JSON.stringify(data, null, 2)}</pre>
+          `;
+        } else {
+          resultDiv.innerHTML = `
+            <h3>Error</h3>
+            <p>${data.error}: ${data.message}</p>
+          `;
+        }
+      } catch (error) {
+        resultDiv.innerHTML = `
+          <h3>Error</h3>
+          <p>Failed to communicate with the server: ${error.message}</p>
+        `;
+      }
+    });
+  </script>
+</body>
+</html>
