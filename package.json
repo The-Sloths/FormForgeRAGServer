@@ -9,7 +9,7 @@
     "build": "tsc",
     "lint": "eslint src --ext .ts",
     "test": "jest",
-    "generate-async-spec": "ts-node scripts/generate-asyncapi.ts",
+    "generate-async-spec": "pnpm dlx ts-node scripts/generate-asyncapi.ts",
     "generate-websocket-docs": "pnpm dlx @asyncapi/cli generate fromTemplate asyncapi.json @asyncapi/html-template -o docs/websocket --use-new-generator"
   },
   "keywords": [
@@ -59,6 +59,7 @@
     "@typescript-eslint/eslint-plugin": "^8.32.0",
     "@typescript-eslint/parser": "^8.32.0",
     "eslint": "^9.26.0",
+    "glob": "^11.0.2",
     "nodemon": "^3.1.10",
     "ts-node": "^10.9.2",
     "typescript": "^5.8.3"
