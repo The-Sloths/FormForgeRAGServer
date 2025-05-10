@@ -115,3 +115,59 @@ export const emitUploadError = (uploadId: string, error: any) => {
     error,
   });
 };
+
+/**
+ * Emit processing start event
+ * @param uploadId Upload ID
+ * @param data Processing data
+ */
+export const emitProcessingStart = (uploadId: string, data: any) => {
+  if (!io) return;
+
+  io.to(`upload:${uploadId}`).emit("processingStart", {
+    uploadId,
+    ...data,
+  });
+};
+
+/**
+ * Emit processing progress event
+ * @param uploadId Upload ID
+ * @param data Progress data
+ */
+export const emitProcessingProgress = (uploadId: string, data: any) => {
+  if (!io) return;
+
+  io.to(`upload:${uploadId}`).emit("processingProgress", {
+    uploadId,
+    ...data,
+  });
+};
+
+/**
+ * Emit processing complete event
+ * @param uploadId Upload ID
+ * @param data Completion data
+ */
+export const emitProcessingComplete = (uploadId: string, data: any) => {
+  if (!io) return;
+
+  io.to(`upload:${uploadId}`).emit("processingComplete", {
+    uploadId,
+    ...data,
+  });
+};
+
+/**
+ * Emit processing error event
+ * @param uploadId Upload ID
+ * @param error Error message or object
+ */
+export const emitProcessingError = (uploadId: string, error: any) => {
+  if (!io) return;
+
+  io.to(`upload:${uploadId}`).emit("processingError", {
+    uploadId,
+    ...error,
+  });
+};

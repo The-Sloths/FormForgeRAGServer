@@ -37,10 +37,10 @@
       "description": "Channel for joining an upload room to receive notifications for a specific upload. Server creates a room named 'upload:{uploadId}'.",
       "messages": {
         "joinUploadRoomMessage": {
-          "name": "Join Upload Room Message",
+          "name": "JoinUploadRoom Message",
           "description": "The unique upload ID string that identifies which upload room to join",
           "payload": {
-            "type": "string",
+            "type": "object",
             "description": "The unique upload ID (server will prepend 'upload:' to create the room name)",
             "example": "upload-123e4567-e89b-12d3-a456-426614174000",
             "x-parser-schema-id": "<anonymous-schema-1>"
@@ -55,10 +55,10 @@
       "description": "Channel for leaving an upload room to stop receiving notifications. Leaves the room named 'upload:{uploadId}'.",
       "messages": {
         "leaveUploadRoomMessage": {
-          "name": "Leave Upload Room Message",
+          "name": "LeaveUploadRoom Message",
           "description": "The unique upload ID string that identifies which upload room to leave",
           "payload": {
-            "type": "string",
+            "type": "object",
             "description": "The unique upload ID (server will prepend 'upload:' to match the room name)",
             "example": "upload-123e4567-e89b-12d3-a456-426614174000",
             "x-parser-schema-id": "<anonymous-schema-2>"
@@ -68,12 +68,30 @@
       },
       "x-parser-unique-object-id": "leaveUploadRoom"
     },
+    "disconnect": {
+      "address": "disconnect",
+      "description": "Channel for the disconnect event.",
+      "messages": {
+        "disconnectMessage": {
+          "name": "Disconnect Message",
+          "description": "Message for the disconnect event.",
+          "payload": {
+            "type": "object",
+            "description": "Payload for the disconnect event.",
+            "example": "upload-123e4567-e89b-12d3-a456-426614174000",
+            "x-parser-schema-id": "<anonymous-schema-3>"
+          },
+          "x-parser-unique-object-id": "disconnectMessage"
+        }
+      },
+      "x-parser-unique-object-id": "disconnect"
+    },
     "uploadProgress": {
       "address": "uploadProgress",
       "description": "Channel for receiving real-time upload progress updates. Events are emitted to the 'upload:{uploadId}' room.",
       "messages": {
         "uploadProgressMessage": {
-          "name": "Upload Progress Message",
+          "name": "UploadProgress Message",
           "description": "Contains information about the current progress of an upload",
           "payload": {
             "type": "object",
@@ -82,19 +100,19 @@
                 "type": "string",
                 "description": "Unique ID for the upload",
                 "example": "upload-123e4567-e89b-12d3-a456-426614174000",
-                "x-parser-schema-id": "<anonymous-schema-4>"
+                "x-parser-schema-id": "<anonymous-schema-5>"
               },
               "bytesReceived": {
                 "type": "integer",
                 "description": "Number of bytes received so far",
                 "example": 1048576,
-                "x-parser-schema-id": "<anonymous-schema-5>"
+                "x-parser-schema-id": "<anonymous-schema-6>"
               },
               "bytesExpected": {
                 "type": "integer",
                 "description": "Total number of bytes expected for the complete upload",
                 "example": 5242880,
-                "x-parser-schema-id": "<anonymous-schema-6>"
+                "x-parser-schema-id": "<anonymous-schema-7>"
               },
               "percent": {
                 "type": "integer",
@@ -102,16 +120,16 @@
                 "minimum": 0,
                 "maximum": 100,
                 "example": 20,
-                "x-parser-schema-id": "<anonymous-schema-7>"
+                "x-parser-schema-id": "<anonymous-schema-8>"
               },
               "completed": {
                 "type": "boolean",
                 "description": "Whether the upload has completed (will be false during progress events)",
                 "example": false,
-                "x-parser-schema-id": "<anonymous-schema-8>"
+                "x-parser-schema-id": "<anonymous-schema-9>"
               }
             },
-            "x-parser-schema-id": "<anonymous-schema-3>"
+            "x-parser-schema-id": "<anonymous-schema-4>"
           },
           "x-parser-unique-object-id": "uploadProgressMessage"
         }
@@ -123,7 +141,7 @@
       "description": "Channel for receiving upload completion notifications. Events are emitted to the 'upload:{uploadId}' room.",
       "messages": {
         "uploadCompleteMessage": {
-          "name": "Upload Complete Message",
+          "name": "UploadComplete Message",
           "description": "Contains information about a completed upload including processing results",
           "payload": {
             "type": "object",
@@ -132,58 +150,58 @@
                 "type": "string",
                 "description": "Unique ID for the upload",
                 "example": "upload-123e4567-e89b-12d3-a456-426614174000",
-                "x-parser-schema-id": "<anonymous-schema-10>"
+                "x-parser-schema-id": "<anonymous-schema-11>"
               },
               "message": {
                 "type": "string",
                 "description": "Success message",
                 "example": "File processed successfully",
-                "x-parser-schema-id": "<anonymous-schema-11>"
+                "x-parser-schema-id": "<anonymous-schema-12>"
               },
               "filename": {
                 "type": "string",
                 "description": "Original filename",
                 "example": "document.pdf",
-                "x-parser-schema-id": "<anonymous-schema-12>"
+                "x-parser-schema-id": "<anonymous-schema-13>"
               },
               "chunks": {
                 "type": "integer",
                 "description": "Number of chunks created during processing",
                 "example": 42,
-                "x-parser-schema-id": "<anonymous-schema-13>"
+                "x-parser-schema-id": "<anonymous-schema-14>"
               },
               "totalCharacters": {
                 "type": "integer",
                 "description": "Total characters processed from the document",
                 "example": 125000,
-                "x-parser-schema-id": "<anonymous-schema-14>"
+                "x-parser-schema-id": "<anonymous-schema-15>"
               },
               "completed": {
                 "type": "boolean",
                 "description": "Always true for completion events",
                 "example": true,
-                "x-parser-schema-id": "<anonymous-schema-15>"
+                "x-parser-schema-id": "<anonymous-schema-16>"
               },
               "bytesReceived": {
                 "type": "integer",
                 "description": "Final number of bytes received",
                 "example": 5242880,
-                "x-parser-schema-id": "<anonymous-schema-16>"
+                "x-parser-schema-id": "<anonymous-schema-17>"
               },
               "bytesExpected": {
                 "type": "integer",
                 "description": "Total bytes expected",
                 "example": 5242880,
-                "x-parser-schema-id": "<anonymous-schema-17>"
+                "x-parser-schema-id": "<anonymous-schema-18>"
               },
               "percent": {
                 "type": "integer",
                 "description": "Final percentage (should be 100)",
                 "example": 100,
-                "x-parser-schema-id": "<anonymous-schema-18>"
+                "x-parser-schema-id": "<anonymous-schema-19>"
               }
             },
-            "x-parser-schema-id": "<anonymous-schema-9>"
+            "x-parser-schema-id": "<anonymous-schema-10>"
           },
           "x-parser-unique-object-id": "uploadCompleteMessage"
         }
@@ -195,7 +213,7 @@
       "description": "Channel for receiving upload error notifications. Events are emitted to the 'upload:{uploadId}' room.",
       "messages": {
         "uploadErrorMessage": {
-          "name": "Upload Error Message",
+          "name": "UploadError Message",
           "description": "Contains error information about a failed upload",
           "payload": {
             "type": "object",
@@ -204,16 +222,16 @@
                 "type": "string",
                 "description": "Unique ID for the upload",
                 "example": "upload-123e4567-e89b-12d3-a456-426614174000",
-                "x-parser-schema-id": "<anonymous-schema-20>"
+                "x-parser-schema-id": "<anonymous-schema-21>"
               },
               "error": {
                 "type": "string",
                 "description": "Error message",
                 "example": "File format not supported",
-                "x-parser-schema-id": "<anonymous-schema-21>"
+                "x-parser-schema-id": "<anonymous-schema-22>"
               }
             },
-            "x-parser-schema-id": "<anonymous-schema-19>"
+            "x-parser-schema-id": "<anonymous-schema-20>"
           },
           "x-parser-unique-object-id": "uploadErrorMessage"
         }

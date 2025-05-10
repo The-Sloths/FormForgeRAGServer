@@ -1,5 +1,9 @@
 import express from "express";
-import { uploadFile } from "../controllers/fileController";
+import {
+  getUploadedFiles,
+  processFiles,
+  uploadFile,
+} from "../controllers/fileController";
 import uploadMiddleware from "../middleware/uploadMiddleware";
 import { getUploadProgress } from "../services/uploadProgressService";
 
@@ -136,6 +140,63 @@ router.post("/upload", uploadMiddleware, (req, res, next) => {
 
 /**
  * @openapi
+ * /api/files/process:
+ *   post:
+ *     summary: Process uploaded files and add to vector store
+ *     description: |
+ *       Triggers processing of previously uploaded files and adds their content to the vector store.
+ *       This endpoint separates the upload and processing steps for better performance.
+ *
+ *       The response includes a `processingId` that can be used to track processing via WebSocket.
+ *       Connect to the WebSocket server and listen for processing events:
+ *
+ *       ```javascript
+ *       socket.on('processingStart', (data) => { console.log('Processing started'); });
+ *       socket.on('processingProgress', (data) => { console.log(`Progress: ${data.percent}%`); });
+ *       socket.on('processingComplete', (data) => { console.log('Processing complete'); });
+ *       socket.on('processingError', (data) => { console.log('Processing error', data.error); });
+ *       ```
+ *     tags: [Files]
+ */
+router.post("/process", async (req, res, next) => {
+  try {
+    await processFiles(req, res);
+  } catch (error) {
+    next(error);
+  }
+});
+/**
+ * @openapi
+ * /api/files/uploaded/{uploadId}:
+ *   get:
+ *     summary: Get uploaded files for a specific upload session
+ *     description: |
+ *       Returns the list of files that have been uploaded in a specific upload session.
+ *       Use this to check the status of uploaded files before processing them.
+ *     tags: [Files]
+ *     parameters:
+ *       - in: path
+ *         name: uploadId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The unique identifier of the upload session
+ *     responses:
+ *       200:
+ *         description: List of uploaded files
+ *       404:
+ *         description: Upload session not found
+ */
+router.get("/uploaded/:uploadId", async (req, res, next) => {
+  try {
+    await getUploadedFiles(req, res);
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * @openapi
  * /api/files/upload-status/{uploadId}:
  *   get:
  *     summary: Get upload progress status
@@ -145,56 +206,6 @@ router.post("/upload", uploadMiddleware, (req, res, next) => {
  *       This endpoint can be used as an alternative to WebSocket connections
  *       for tracking upload progress, or to retrieve the final status of a
  *       completed upload.
- *     tags: [Files]
- *     parameters:
- *       - in: path
- *         name: uploadId
- *         required: true
- *         schema:
- *           type: string
- *         description: The unique identifier of the upload
- *     responses:
- *       200:
- *         description: Upload status retrieved successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 uploadId:
- *                   type: string
- *                   description: The unique identifier of the upload
- *                 bytesReceived:
- *                   type: integer
- *                   description: Number of bytes received
- *                 bytesExpected:
- *                   type: integer
- *                   description: Total number of bytes expected
- *                 percent:
- *                   type: integer
- *                   description: Percentage of upload completed (0-100)
- *                 completed:
- *                   type: boolean
- *                   description: Whether the upload and processing has completed
- *                 error:
- *                   type: string
- *                   description: Error message if upload failed
- *                 createdAt:
- *                   type: integer
- *                   description: Timestamp when the upload was initiated
- *                 resultData:
- *                   type: object
- *                   description: Additional data for completed uploads
- *       404:
- *         description: Upload not found
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 error:
- *                   type: string
- *                   description: Error message
  */
 router.get(
   "/upload-status/:uploadId",

@@ -52,3 +52,14 @@ export interface FileUploadOptions {
   chunkOverlap?: number;
   metadata?: Record<string, any>;
 }
+
+export interface FileDocument {
+  id: string;
+  filePath: string;
+  fileType: string;
+  originalName: string;
+  metadata?: Record<string, any>;
+  status?: "uploaded" | "processing" | "processed" | "error";
+  processed?: boolean;
+  error?: string;
+}
