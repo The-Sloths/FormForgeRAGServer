@@ -4,15 +4,18 @@ import express from "express";
 import helmet from "helmet";
 import morgan from "morgan";
 import path from "path";
+import http from "http";
 import swaggerJsdoc from "swagger-jsdoc";
 import swaggerUi from "swagger-ui-express";
 import ragRoutes from "./routes/ragRoutes";
 import fileRoutes from "./routes/fileRoutes";
+import { initSocketIO } from "./services/socketService";
+// Import WebSocket documentation (even though it's not used directly)
+import "./docs/websocketDocs";
+import { getAsyncApiDocs } from "./docs/asyncapiDocs";
 
 // Load environment variables
 dotenv.config();
-
-// Import routes
 
 // OpenAPI configuration
 const swaggerOptions = {
@@ -35,7 +38,7 @@ const swaggerOptions = {
       },
     ],
   },
-  apis: ["./src/routes/*.ts"], // Path to the API docs
+  apis: ["./src/routes/*.ts", "./src/docs/*.ts"], // Path to the API docs
 };
 
 const swaggerDocs = swaggerJsdoc(swaggerOptions);
@@ -43,6 +46,12 @@ const swaggerDocs = swaggerJsdoc(swaggerOptions);
 // Create Express app
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Create HTTP server
+const server = http.createServer(app);
+
+// Initialize Socket.IO
+initSocketIO(server);
 
 // Middleware
 app.use(cors());
@@ -56,12 +65,36 @@ app.use("/api/files", fileRoutes);
 
 // OpenAPI Documentation
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocs));
+// Add raw Swagger JSON endpoint
+
+app.get("/api-docs.json", (req, res) => {
+  res.json(swaggerDocs);
+});
+
+// AsyncAPI Documentation
+app.use(
+  "/websocket-docs",
+  express.static(path.join(__dirname, "../websocket-docs")),
+);
+// New endpoint to serve AsyncAPI schema as JSON
+app.get("/asyncapi.json", (req, res) => {
+  try {
+    const asyncApiDocs = getAsyncApiDocs();
+    res.json(asyncApiDocs);
+  } catch (error) {
+    res.status(500).json({
+      error: "Failed to load AsyncAPI documentation",
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
 
 // Root endpoint
 app.get("/", (req, res) => {
   res.send({
     message: "FormForge RAG API Server",
     documentation: "/api-docs",
+    websocket: "ws://localhost:" + PORT,
   });
 });
 
@@ -100,11 +133,12 @@ app.use(
 );
 
 // Start server
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
   console.log(
     `API Documentation available at http://localhost:${PORT}/api-docs`,
   );
+  console.log(`WebSocket server running on ws://localhost:${PORT}`);
 });
 
 export default app;

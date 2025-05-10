@@ -1,0 +1,15 @@
+# FormForge RAG Documentation Setup
+
+This project uses two separate documentation systems:
+
+1. **Swagger/OpenAPI** for REST API documentation
+2. **AsyncAPI** for WebSocket event documentation
+
+## Setup Instructions
+
+### Prerequisites
+
+Install the AsyncAPI CLI globally:
+
+```bash
+pnpm add -g @asyncapi/cli

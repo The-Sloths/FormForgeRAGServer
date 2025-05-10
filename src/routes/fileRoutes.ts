@@ -1,6 +1,6 @@
 import express from "express";
 import { uploadFile } from "../controllers/fileController";
-import upload from "../middleware/uploadMiddleware";
+import uploadMiddleware from "../middleware/uploadMiddleware";
 
 const router = express.Router();
 
@@ -39,7 +39,21 @@ const router = express.Router();
  * /api/files/upload:
  *   post:
  *     summary: Upload a file to the RAG system
- *     description: Upload a PDF or Markdown file to extract text, generate embeddings, and add to the vector store
+ *     description: |
+ *       Upload a PDF or Markdown file to extract text, generate embeddings, and add to the vector store.
+ *
+ *       The response includes an `uploadId` that can be used to track upload progress via WebSocket.
+ *       Connect to the WebSocket server and listen for progress events by joining the upload room:
+ *
+ *       ```javascript
+ *       // After getting uploadId from the response
+ *       socket.emit('joinUploadRoom', uploadId);
+ *
+ *       // Listen for progress updates
+ *       socket.on('uploadProgress', (data) => {
+ *         console.log(`Upload progress: ${data.percent}%`);
+ *       });
+ *       ```
  *     tags: [Files]
  *     consumes:
  *       - multipart/form-data
@@ -79,12 +93,43 @@ const router = express.Router();
  *                 totalCharacters:
  *                   type: integer
  *                   description: Total characters processed
+ *                 uploadId:
+ *                   type: string
+ *                   description: Unique ID for tracking upload progress via WebSocket
  *       400:
  *         description: Bad request or invalid file
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *                   description: Error type
+ *                 message:
+ *                   type: string
+ *                   description: Error message
+ *                 uploadId:
+ *                   type: string
+ *                   description: Unique ID for tracking upload progress via WebSocket
  *       500:
  *         description: Server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *                   description: Error type
+ *                 message:
+ *                   type: string
+ *                   description: Error message
+ *                 uploadId:
+ *                   type: string
+ *                   description: Unique ID for tracking upload progress via WebSocket
  */
-router.post("/upload", upload.single("file"), (req, res, next) => {
+router.post("/upload", uploadMiddleware, (req, res, next) => {
   uploadFile(req, res).catch(next);
 });
 
