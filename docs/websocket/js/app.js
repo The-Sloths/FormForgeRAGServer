@@ -237,6 +237,102 @@
         }
       },
       "x-parser-unique-object-id": "uploadError"
+    },
+    "processingStart": {
+      "address": "processingStart",
+      "description": "Channel for the processingStart event.",
+      "messages": {
+        "processingStartMessage": {
+          "name": "ProcessingStart Message",
+          "description": "Message for the processingStart event.",
+          "payload": {
+            "type": "object",
+            "properties": {
+              "uploadId": {
+                "type": "string",
+                "description": "Unique ID for the upload",
+                "example": "upload-123e4567-e89b-12d3-a456-426614174000",
+                "x-parser-schema-id": "<anonymous-schema-24>"
+              }
+            },
+            "x-parser-schema-id": "<anonymous-schema-23>"
+          },
+          "x-parser-unique-object-id": "processingStartMessage"
+        }
+      },
+      "x-parser-unique-object-id": "processingStart"
+    },
+    "processingProgress": {
+      "address": "processingProgress",
+      "description": "Channel for the processingProgress event.",
+      "messages": {
+        "processingProgressMessage": {
+          "name": "ProcessingProgress Message",
+          "description": "Message for the processingProgress event.",
+          "payload": {
+            "type": "object",
+            "properties": {
+              "uploadId": {
+                "type": "string",
+                "description": "Unique ID for the upload",
+                "example": "upload-123e4567-e89b-12d3-a456-426614174000",
+                "x-parser-schema-id": "<anonymous-schema-26>"
+              }
+            },
+            "x-parser-schema-id": "<anonymous-schema-25>"
+          },
+          "x-parser-unique-object-id": "processingProgressMessage"
+        }
+      },
+      "x-parser-unique-object-id": "processingProgress"
+    },
+    "processingComplete": {
+      "address": "processingComplete",
+      "description": "Channel for the processingComplete event.",
+      "messages": {
+        "processingCompleteMessage": {
+          "name": "ProcessingComplete Message",
+          "description": "Message for the processingComplete event.",
+          "payload": {
+            "type": "object",
+            "properties": {
+              "uploadId": {
+                "type": "string",
+                "description": "Unique ID for the upload",
+                "example": "upload-123e4567-e89b-12d3-a456-426614174000",
+                "x-parser-schema-id": "<anonymous-schema-28>"
+              }
+            },
+            "x-parser-schema-id": "<anonymous-schema-27>"
+          },
+          "x-parser-unique-object-id": "processingCompleteMessage"
+        }
+      },
+      "x-parser-unique-object-id": "processingComplete"
+    },
+    "processingError": {
+      "address": "processingError",
+      "description": "Channel for the processingError event.",
+      "messages": {
+        "processingErrorMessage": {
+          "name": "ProcessingError Message",
+          "description": "Message for the processingError event.",
+          "payload": {
+            "type": "object",
+            "properties": {
+              "uploadId": {
+                "type": "string",
+                "description": "Unique ID for the upload",
+                "example": "upload-123e4567-e89b-12d3-a456-426614174000",
+                "x-parser-schema-id": "<anonymous-schema-30>"
+              }
+            },
+            "x-parser-schema-id": "<anonymous-schema-29>"
+          },
+          "x-parser-unique-object-id": "processingErrorMessage"
+        }
+      },
+      "x-parser-unique-object-id": "processingError"
     }
   },
   "components": {
