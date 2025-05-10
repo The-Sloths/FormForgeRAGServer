@@ -13,6 +13,10 @@ const uploadProgressMap = new Map<
     percent: number;
     completed: boolean;
     error?: string;
+    // Add a timestamp of when this was created
+    createdAt: number;
+    // Add result data for completed uploads
+    resultData?: any;
   }
 >();
 
@@ -26,10 +30,12 @@ export const initUploadProgress = (uploadId: string): void => {
     bytesExpected: 0,
     percent: 0,
     completed: false,
+    createdAt: Date.now(),
   };
 
   uploadProgressMap.set(uploadId, initialProgress);
-  emitUploadProgress(uploadId, initialProgress);
+  // Don't emit immediately - client hasn't joined the room yet
+  // We'll emit when they join instead
 };
 
 /**
@@ -46,11 +52,14 @@ export const updateUploadProgress = (
   const percent =
     bytesExpected > 0 ? Math.round((bytesReceived / bytesExpected) * 100) : 0;
 
+  const currentData = uploadProgressMap.get(uploadId);
+
   const progressData = {
     bytesReceived,
     bytesExpected,
     percent,
     completed: bytesReceived === bytesExpected && bytesExpected > 0,
+    createdAt: currentData?.createdAt || Date.now(),
   };
 
   uploadProgressMap.set(uploadId, progressData);
@@ -69,11 +78,11 @@ export const completeUpload = (uploadId: string, resultData?: any): void => {
       ...progress,
       completed: true,
       percent: 100,
-      ...resultData,
+      resultData, // Store the result data
     };
 
     uploadProgressMap.set(uploadId, completeData);
-    emitUploadComplete(uploadId, completeData);
+    emitUploadComplete(uploadId, { ...completeData, ...resultData });
   }
 };
 
@@ -98,9 +107,10 @@ export const failUpload = (uploadId: string, errorMessage: string): void => {
 /**
  * Get upload progress
  * @param uploadId Unique ID for the upload
+ * @returns Progress data or undefined if not found
  */
 export const getUploadProgress = (uploadId: string) => {
-  return uploadProgressMap.get(uploadId);
+  return uploadProgressMap.get(uploadId) || undefined;
 };
 
 /**

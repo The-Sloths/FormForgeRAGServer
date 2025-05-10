@@ -1,6 +1,7 @@
 import express from "express";
 import { uploadFile } from "../controllers/fileController";
 import uploadMiddleware from "../middleware/uploadMiddleware";
+import { getUploadProgress } from "../services/uploadProgressService";
 
 const router = express.Router();
 
@@ -132,5 +133,90 @@ const router = express.Router();
 router.post("/upload", uploadMiddleware, (req, res, next) => {
   uploadFile(req, res).catch(next);
 });
+
+/**
+ * @openapi
+ * /api/files/upload-status/{uploadId}:
+ *   get:
+ *     summary: Get upload progress status
+ *     description: |
+ *       Returns the current status of a file upload process by its ID.
+ *
+ *       This endpoint can be used as an alternative to WebSocket connections
+ *       for tracking upload progress, or to retrieve the final status of a
+ *       completed upload.
+ *     tags: [Files]
+ *     parameters:
+ *       - in: path
+ *         name: uploadId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The unique identifier of the upload
+ *     responses:
+ *       200:
+ *         description: Upload status retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 uploadId:
+ *                   type: string
+ *                   description: The unique identifier of the upload
+ *                 bytesReceived:
+ *                   type: integer
+ *                   description: Number of bytes received
+ *                 bytesExpected:
+ *                   type: integer
+ *                   description: Total number of bytes expected
+ *                 percent:
+ *                   type: integer
+ *                   description: Percentage of upload completed (0-100)
+ *                 completed:
+ *                   type: boolean
+ *                   description: Whether the upload and processing has completed
+ *                 error:
+ *                   type: string
+ *                   description: Error message if upload failed
+ *                 createdAt:
+ *                   type: integer
+ *                   description: Timestamp when the upload was initiated
+ *                 resultData:
+ *                   type: object
+ *                   description: Additional data for completed uploads
+ *       404:
+ *         description: Upload not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *                   description: Error message
+ */
+router.get(
+  "/upload-status/:uploadId",
+  async (
+    req: express.Request<{ uploadId: string }>,
+    res: express.Response,
+    next: express.NextFunction,
+  ): Promise<void> => {
+    try {
+      const { uploadId } = req.params;
+      const progress = getUploadProgress(uploadId);
+
+      if (!progress) {
+        res.status(404).json({ error: "Upload not found" });
+        return;
+      }
+
+      res.status(200).json({ uploadId, ...progress });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
 
 export default router;

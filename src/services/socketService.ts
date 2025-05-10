@@ -1,6 +1,7 @@
 import { Server as SocketIOServer } from "socket.io";
 import { Server as HttpServer } from "http";
 import { Server as HttpsServer } from "https";
+import { getUploadProgress } from "./uploadProgressService";
 
 // Singleton instance of socket.io server
 let io: SocketIOServer | null = null;
@@ -23,6 +24,30 @@ export const initSocketIO = (server: HttpServer | HttpsServer) => {
     socket.on("joinUploadRoom", (uploadId: string) => {
       socket.join(`upload:${uploadId}`);
       console.log(`Client ${socket.id} joined upload room: ${uploadId}`);
+
+      // Send the current progress status immediately to the newly joined client
+      const uploadData = getUploadProgress(uploadId);
+      if (uploadData) {
+        // Send current progress state to just this socket
+        socket.emit("uploadProgress", {
+          uploadId,
+          ...uploadData,
+        });
+
+        // If already completed, send complete event too
+        if (uploadData.completed) {
+          socket.emit("uploadComplete", {
+            uploadId,
+            ...uploadData,
+            ...(uploadData.resultData || {}),
+          });
+        } else if (uploadData.error) {
+          socket.emit("uploadError", {
+            uploadId,
+            error: uploadData.error,
+          });
+        }
+      }
     });
 
     socket.on("leaveUploadRoom", (uploadId: string) => {
