@@ -47,7 +47,7 @@ const uploadMiddleware = (req: Request, res: Response, next: NextFunction) => {
   const form = formidable({
     uploadDir: uploadsDir,
     keepExtensions: true,
-    maxFileSize: 10 * 1024 * 1024, // 10MB file size limit
+    maxFileSize: 20 * 1024 * 1024, // 10MB file size limit
     multiples: false, // Only allow one file upload
     filename: (_name: string, ext: string, part: formidable.Part) => {
       // Generate unique filename
