@@ -11,9 +11,6 @@ import ragRoutes from "./routes/ragRoutes";
 import fileRoutes from "./routes/fileRoutes";
 import { initSocketIO } from "./services/socketService";
 
-// Import WebSocket documentation (even though it's not used directly)
-import "../docs/websocketDocs";
-
 // Load environment variables
 dotenv.config();
 
@@ -74,8 +71,9 @@ app.get("/api-docs.json", (req, res) => {
 // AsyncAPI Documentation
 app.use(
   "/websocket-docs",
-  express.static(path.join(__dirname, "../websocket-docs")),
+  express.static(path.join(__dirname, "../docs/websocket")),
 );
+
 // Serve AsyncAPI schema as JSON
 app.get("/asyncapi.json", (req, res) => {
   res.sendFile(path.join(__dirname, "../asyncapi.json"));
