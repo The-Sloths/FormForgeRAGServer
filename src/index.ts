@@ -76,17 +76,9 @@ app.use(
   "/websocket-docs",
   express.static(path.join(__dirname, "../websocket-docs")),
 );
-// New endpoint to serve AsyncAPI schema as JSON
+// Serve AsyncAPI schema as JSON
 app.get("/asyncapi.json", (req, res) => {
-  try {
-    const asyncApiDocs = getAsyncApiDocs();
-    res.json(asyncApiDocs);
-  } catch (error) {
-    res.status(500).json({
-      error: "Failed to load AsyncAPI documentation",
-      message: error instanceof Error ? error.message : String(error),
-    });
-  }
+  res.sendFile(path.join(__dirname, "../asyncapi.json"));
 });
 
 // Root endpoint

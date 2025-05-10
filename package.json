@@ -10,8 +10,7 @@
     "lint": "eslint src --ext .ts",
     "test": "jest",
     "generate-async-spec": "ts-node src/docs/asyncapi.ts",
-    "generate-websocket-docs": "pnpm dlx @asyncapi/cli generate fromTemplate asyncapi.json @asyncapi/html-template -o websocket-docs --use-new-generator",
-    "generate-asyncapi-json": "node scripts/generate-asyncapi-json.js"
+    "generate-websocket-docs": "pnpm dlx @asyncapi/cli generate fromTemplate asyncapi.json @asyncapi/html-template -o websocket-docs --use-new-generator"
   },
   "keywords": [
     "rag",

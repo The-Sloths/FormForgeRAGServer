@@ -2,9 +2,8 @@ import fs from "fs";
 import path from "path";
 
 /**
- * AsyncAPI specification documentation
- * This specification provides detailed documentation for all WebSocket events
- * used in the FormForge RAG Server with Socket.IO
+ * Enhanced AsyncAPI specification for Socket.IO-based WebSocket API
+ * This specification documents real-time file upload tracking with Socket.IO
  */
 const asyncApiSpec = {
   asyncapi: "3.0.0",
@@ -16,7 +15,7 @@ const asyncApiSpec = {
 # FormForge RAG WebSocket API Documentation
 
 This WebSocket API provides real-time communication capabilities for the FormForge RAG Server.
-It uses Socket.IO as the underlying transport protocol.
+It uses Socket.IO as the underlying transport protocol for bidirectional, event-based communication.
 
 ## Main Features
 
@@ -24,6 +23,13 @@ It uses Socket.IO as the underlying transport protocol.
 * Upload completion notifications
 * Error reporting for failed uploads
 * Room-based communication for isolating upload events
+
+## Socket.IO Room Pattern
+
+The server uses a room-based pattern for delivering targeted events:
+* When joining a room, clients are subscribed to \`upload:{uploadId}\`
+* All progress events are emitted only to clients in the appropriate room
+* This ensures clients only receive events relevant to their uploads
 
 ## Client Integration Example
 
@@ -33,8 +39,11 @@ import { io } from 'socket.io-client';
 // Connect to the WebSocket server
 const socket = io('http://localhost:3000');
 
+// After starting a file upload and receiving uploadId from the response
+const uploadId = "upload-123";
+
 // Join a specific upload room to receive updates
-socket.emit('joinUploadRoom', 'upload-123');
+socket.emit('joinUploadRoom', uploadId);
 
 // Listen for progress updates
 socket.on('uploadProgress', (data) => {
@@ -56,7 +65,7 @@ socket.on('uploadError', (data) => {
 
 // Leave the room when done
 function cleanup() {
-  socket.emit('leaveUploadRoom', 'upload-123');
+  socket.emit('leaveUploadRoom', uploadId);
 }
 \`\`\`
 `,
@@ -73,21 +82,23 @@ function cleanup() {
   servers: {
     production: {
       host: "api.formforgerag.example.com",
-      protocol: "wss",
-      description: "Production WebSocket server",
+      protocol: "ws", // Base WebSocket protocol
+      protocolVersion: "socket.io", // Specify Socket.IO protocol
+      description: "Production Socket.IO server",
     },
     development: {
       host: "localhost:3000",
       protocol: "ws",
-      description: "Development WebSocket server",
+      protocolVersion: "socket.io",
+      description: "Development Socket.IO server",
     },
   },
   defaultContentType: "application/json",
   channels: {
     joinUploadRoom: {
-      address: "joinUploadRoom",
+      address: "joinUploadRoom", // Socket.IO event name
       description:
-        "Channel for joining an upload room to receive notifications",
+        "Channel for joining an upload room to receive notifications for a specific upload. Server creates a room named 'upload:{uploadId}'.",
       messages: {
         joinUploadRoomMessage: {
           name: "Join Upload Room Message",
@@ -95,7 +106,8 @@ function cleanup() {
             "The unique upload ID string that identifies which upload room to join",
           payload: {
             type: "string",
-            description: "The unique upload ID",
+            description:
+              "The unique upload ID (server will prepend 'upload:' to create the room name)",
             example: "upload-123e4567-e89b-12d3-a456-426614174000",
           },
         },
@@ -104,7 +116,7 @@ function cleanup() {
     leaveUploadRoom: {
       address: "leaveUploadRoom",
       description:
-        "Channel for leaving an upload room to stop receiving notifications",
+        "Channel for leaving an upload room to stop receiving notifications. Leaves the room named 'upload:{uploadId}'.",
       messages: {
         leaveUploadRoomMessage: {
           name: "Leave Upload Room Message",
@@ -112,7 +124,8 @@ function cleanup() {
             "The unique upload ID string that identifies which upload room to leave",
           payload: {
             type: "string",
-            description: "The unique upload ID",
+            description:
+              "The unique upload ID (server will prepend 'upload:' to match the room name)",
             example: "upload-123e4567-e89b-12d3-a456-426614174000",
           },
         },
@@ -120,7 +133,8 @@ function cleanup() {
     },
     uploadProgress: {
       address: "uploadProgress",
-      description: "Channel for receiving real-time upload progress updates",
+      description:
+        "Channel for receiving real-time upload progress updates. Events are emitted to the 'upload:{uploadId}' room.",
       messages: {
         uploadProgressMessage: {
           name: "Upload Progress Message",
@@ -165,7 +179,8 @@ function cleanup() {
     },
     uploadComplete: {
       address: "uploadComplete",
-      description: "Channel for receiving upload completion notifications",
+      description:
+        "Channel for receiving upload completion notifications. Events are emitted to the 'upload:{uploadId}' room.",
       messages: {
         uploadCompleteMessage: {
           name: "Upload Complete Message",
@@ -226,7 +241,8 @@ function cleanup() {
     },
     uploadError: {
       address: "uploadError",
-      description: "Channel for receiving upload error notifications",
+      description:
+        "Channel for receiving upload error notifications. Events are emitted to the 'upload:{uploadId}' room.",
       messages: {
         uploadErrorMessage: {
           name: "Upload Error Message",
@@ -250,11 +266,19 @@ function cleanup() {
       },
     },
   },
+  components: {
+    securitySchemes: {
+      socketIoAuth: {
+        type: "userPassword",
+        description:
+          "Socket.IO allows connection authentication through query parameters or headers",
+      },
+    },
+  },
 };
 
 // Write the AsyncAPI spec directly as JSON
 const asyncApiJson = JSON.stringify(asyncApiSpec, null, 2);
 fs.writeFileSync(path.join(__dirname, "../../asyncapi.json"), asyncApiJson);
 
-// Add an endpoint to serve the AsyncAPI specification
-console.log("AsyncAPI specification generated at asyncapi.json");
+console.log("Enhanced AsyncAPI specification generated at asyncapi.json");
