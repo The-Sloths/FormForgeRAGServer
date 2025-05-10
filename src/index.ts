@@ -10,9 +10,9 @@ import swaggerUi from "swagger-ui-express";
 import ragRoutes from "./routes/ragRoutes";
 import fileRoutes from "./routes/fileRoutes";
 import { initSocketIO } from "./services/socketService";
+
 // Import WebSocket documentation (even though it's not used directly)
-import "./docs/websocketDocs";
-import { getAsyncApiDocs } from "./docs/asyncapiDocs";
+import "../docs/websocketDocs";
 
 // Load environment variables
 dotenv.config();

@@ -9,8 +9,8 @@
     "build": "tsc",
     "lint": "eslint src --ext .ts",
     "test": "jest",
-    "generate-async-spec": "ts-node src/docs/asyncapi.ts",
-    "generate-websocket-docs": "pnpm dlx @asyncapi/cli generate fromTemplate asyncapi.json @asyncapi/html-template -o websocket-docs --use-new-generator"
+    "generate-async-spec": "ts-node scripts/generate-asyncapi.ts",
+    "generate-websocket-docs": "pnpm dlx @asyncapi/cli generate fromTemplate asyncapi.json @asyncapi/html-template -o docs/websocket --use-new-generator"
   },
   "keywords": [
     "rag",
