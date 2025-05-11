@@ -1,0 +1,266 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Calisthenics Training Program Schema",
+  "description": "Schema for defining a calisthenics training program based on provided sources.",
+  "type": "object",
+  "properties": {
+    "program_name": {
+      "type": "string",
+      "description": "The name of the training program, e.g., 'The Beginner Program' or 'Full Body Circuit 1'."
+    },
+    "program_goal": {
+      "type": "string",
+      "description": "The primary goal of the training program, e.g., 'How to progress in calisthenics without beginner mistakes', 'lose bodyfat', 'learn impressive skills'."
+    },
+    "program_description": {
+      "type": "string",
+      "description": "A detailed description of the program, including its philosophy, target audience, and what it covers."
+    },
+    "required_gear": {
+      "type": "array",
+      "description": "A list of basic equipment or gear required for the program.",
+      "items": {
+        "type": "string",
+        "description": "Name or description of a required piece of equipment, e.g., 'Parallettes', 'Pull-up bar', 'No equipment needed'."
+      }
+    },
+    "exercises": {
+      "type": "array",
+      "description": "A comprehensive list of all unique exercises used within this program, including descriptions and variations.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "exercise_name": {
+            "type": "string",
+            "description": "The unique name of the exercise (e.g., 'Push-up', 'Handstand Hold', 'Muscle Up')."
+          },
+          "exercise_type": {
+            "type": "string",
+            "description": "The category of the exercise, e.g., 'Basics', 'Skill', 'Static Hold', 'Dynamic', 'Stretch', 'Mobility Drill', 'Cardio', 'Weighted'.",
+            "enum": ["Basics", "Skill", "Static Hold", "Dynamic", "Stretch", "Mobility Drill", "Cardio", "Weighted", "Freestyle", "Other"]
+          },
+          "description": {
+            "type": "string",
+            "description": "A brief description of how to perform the exercise correctly."
+          },
+          "target_muscles": {
+            "type": "array",
+            "description": "List of primary muscle groups targeted by the exercise.",
+            "items": {
+              "type": "string"
+            }
+          },
+          "video_url": {
+            "type": "string",
+            "format": "url",
+            "description": "Optional URL to an instructional video for the exercise.",
+            "nullable": true
+          },
+          "progressions": {
+            "type": "array",
+            "description": "Optional list of steps or variations to scale the exercise difficulty.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "level_name": {
+                  "type": "string",
+                  "description": "Name of the progression level (e.g., 'Wall Assisted', 'Tucked', 'Straddle', 'Full')."
+                },
+                "description": {
+                  "type": "string",
+                  "description": "Description of this specific progression variation."
+                }
+              },
+              "required": ["level_name", "description"]
+            },
+            "nullable": true
+          }
+        },
+        "required": ["exercise_name", "exercise_type", "description", "target_muscles"]
+      }
+    },
+    "workout_plan": {
+      "type": "object",
+      "description": "The structure defining the program's workout schedule.",
+      "properties": {
+        "structure_type": {
+          "type": "string",
+          "description": "The overall type of plan structure, e.g., 'Weekly Split', 'Circuit Based', 'Greasing the Groove'.",
+          "enum": ["Weekly Split", "Circuit Based", "AMRAP", "EMOM", "Tabata", "Greasing the Groove", "Other"]
+        },
+        "schedule": {
+          "type": "array",
+          "description": "List of workout days or sessions in chronological order.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "day": {
+                "type": "string",
+                "description": "Identifier for the day or session (e.g., 'Day 1', 'Monday', 'Session A')."
+              },
+              "focus": {
+                "type": "string",
+                "description": "The primary focus for this day (e.g., 'Skill / Straight Arm', 'Strength / Bent Arm', 'Rest', 'Flexibility', 'Mobility', 'Push', 'Pull', 'Legs', 'Full Body')."
+              },
+              "routines": {
+                "type": "array",
+                "description": "List of routines or workout blocks for this day.",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "routine_name": {
+                      "type": "string",
+                      "description": "Name of the routine or block (e.g., 'Warm-up', 'Main Skill Work', 'Core Circuit')."
+                    },
+                    "routine_type": {
+                      "type": "string",
+                      "description": "The format of this routine (e.g., 'Standard Sets/Reps', 'Circuit', 'AMRAP', 'EMOM', 'Tabata', 'Warm-up', 'Cool-down', 'Greasing the Groove Session').",
+                      "enum": ["Standard Sets/Reps", "Circuit", "AMRAP", "EMOM", "Tabata", "Warm-up", "Cool-down", "Greasing the Groove Session", "Other"]
+                    },
+                     "duration": {
+                       "type": "string",
+                       "description": "Optional suggested duration for the routine (e.g., '15 minutes', '4 rounds', 'Until completion').",
+                       "nullable": true
+                     },
+                    "notes": {
+                       "type": "string",
+                       "description": "Optional specific instructions or goals for the routine (e.g., 'No rest between exercises', 'Work to maximum intensity').",
+                       "nullable": true
+                    },
+                    "exercises_in_routine": {
+                      "type": "array",
+                      "description": "List of exercises to be performed in this routine, with specific parameters.",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "exercise_name": {
+                            "type": "string",
+                            "description": "The name of the exercise (must match an exercise_name in the 'exercises' list)."
+                          },
+                           "progression_level": {
+                            "type": "string",
+                            "description": "Optional specific progression level for this exercise in this routine.",
+                            "nullable": true
+                          },
+                          "sets": {
+                            "type": ["integer", "string"],
+                            "description": "Number of sets or how sets are determined (e.g., 3, 'Max', 'See routine notes').",
+                             "nullable": true
+                          },
+                          "reps": {
+                            "type": ["integer", "string"],
+                            "description": "Number of repetitions or how reps are determined (e.g., 10, 'Max', 'For time', 'X 1 minute').",
+                             "nullable": true
+                          },
+                          "duration": {
+                            "type": ["string", "integer"],
+                            "description": "Duration for static holds or timed intervals (e.g., '20 sec', 'Max', '1 minute', 60).",
+                            "nullable": true
+                          },
+                          "rest_after_exercise": {
+                            "type": ["string", "integer"],
+                            "description": "Rest period after completing this exercise before moving to the next, or 'See routine notes'.",
+                            "nullable": true
+                          },
+                           "notes": {
+                            "type": "string",
+                            "description": "Optional specific notes for performing this exercise within this routine (e.g., 'Use elevated feet', 'Alternate sides').",
+                            "nullable": true
+                          }
+                        },
+                        "required": ["exercise_name"]
+                      }
+                    }
+                  },
+                  "required": ["routine_name", "routine_type", "exercises_in_routine"]
+                }
+              }
+            },
+            "required": ["day", "focus", "routines"]
+          }
+        }
+      },
+      "required": ["structure_type", "schedule"]
+    },
+    "nutrition_advice": {
+      "type": "object",
+      "description": "Optional section for nutrition advice relevant to the program.",
+      "properties": {
+        "overview": {
+          "type": "string",
+          "description": "General summary or philosophy on nutrition for this program."
+        },
+        "key_principles": {
+          "type": "array",
+          "description": "List of key nutrition principles emphasized (e.g., 'Lower your fat percentage', 'Don't bulk', 'Apply The 80/20 Rule').",
+          "items": {
+            "type": "object",
+            "properties": {
+              "principle_name": { "type": "string" },
+              "description": { "type": "string" }
+            },
+            "required": ["principle_name", "description"]
+          }
+        },
+        "macronutrients_guidelines": {
+          "type": "object",
+          "description": "Specific guidelines for macronutrient intake.",
+          "properties": {
+            "calories": { "type": "string", "description": "Guideline on daily calorie intake (e.g., 'Consume 10% to 20% above your caloric needs')." },
+            "carbohydrates": { "type": "string", "description": "Guideline on carbohydrate intake (e.g., '50% to 70% of energy from carbohydrates', 'Focus on complex carbs')." },
+            "protein": { "type": "string", "description": "Guideline on protein intake (e.g., 'Recommended 2 grams per kilogram of bodyweight')." },
+            "fats": { "type": "string", "description": "Guideline on fat intake (e.g., '20-35% of daily calories from fat', 'Focus on unsaturated fats')." }
+          }
+        },
+        "example_meal_plans": {
+          "type": "array",
+          "description": "Optional list of example meal plans.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "plan_name": { "type": "string" },
+              "meals": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "time": { "type": "string", "description": "Suggested time for the meal (e.g., '12:00', 'Post-Workout')." },
+                    "meal_type": { "type": "string", "description": "Type of meal (e.g., 'Breakfast', 'Dinner', 'Snack')." },
+                    "consumption": { "type": "string", "description": "Description of the food/drink consumed." }
+                  },
+                  "required": ["meal_type", "consumption"]
+                }
+              }
+            },
+            "required": ["plan_name", "meals"]
+          },
+          "nullable": true
+        }
+      },
+      "nullable": true
+    },
+    "hydration_advice": {
+      "type": "object",
+      "description": "Optional section for hydration advice relevant to the program.",
+      "properties": {
+        "overview": {
+          "type": "string",
+          "description": "General summary on the importance of hydration for athletes."
+        },
+        "recommended_intake": {
+          "type": "string",
+          "description": "Guideline on recommended daily fluid intake (e.g., 'up to 3 to 4 liters of water per day for athletes')."
+        }
+      },
+      "nullable": true
+    }
+  },
+  "required": [
+    "program_name",
+    "program_goal",
+    "program_description",
+    "required_gear",
+    "exercises",
+    "workout_plan"
+  ]
+}

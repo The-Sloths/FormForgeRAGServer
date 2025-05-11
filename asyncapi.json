@@ -4,7 +4,7 @@
   "info": {
     "title": "FormForge RAG WebSocket API",
     "version": "1.0.0",
-    "description": "\n# FormForge RAG WebSocket API Documentation\n\nThis WebSocket API provides real-time communication capabilities for the FormForge RAG Server.\nIt uses Socket.IO as the underlying transport protocol for bidirectional, event-based communication.\n\n## Main Features\n\n* Real-time upload progress tracking\n* Upload completion notifications\n* Error reporting for failed uploads\n* Processing status for document ingestion\n* Room-based communication for isolating upload events\n\n## Socket.IO Room Pattern\n\nThe server uses a room-based pattern for delivering targeted events:\n* When joining a room, clients are subscribed to `upload:{uploadId}`\n* All progress events are emitted only to clients in the appropriate room\n* This ensures clients only receive events relevant to their uploads\n\n## Client Integration Example\n\n```javascript\nimport { io } from 'socket.io-client';\n\n// Connect to the WebSocket server\nconst socket = io('http://localhost:3000');\n\n// After starting a file upload and receiving uploadId from the response\nconst uploadId = \"upload-123\";\n\n// Join a specific upload room to receive updates\nsocket.emit('joinUploadRoom', uploadId);\n\n// Listen for progress updates\nsocket.on('uploadProgress', (data) => {\n  console.log(`Upload ${data.uploadId} progress: ${data.percent}%`);\n  updateProgressBar(data.percent);\n});\n\n// Listen for completion\nsocket.on('uploadComplete', (data) => {\n  console.log(`Upload completed: ${data.filename} ready for processing`);\n  showCompletionMessage(data);\n});\n\n// Listen for errors\nsocket.on('uploadError', (data) => {\n  console.error(`Upload error: ${data.error}`);\n  showErrorMessage(data.error);\n});\n\n// Listen for processing events\nsocket.on('processingStart', (data) => {\n  console.log(`Processing started for ${data.totalFiles} files`);\n});\n\nsocket.on('processingProgress', (data) => {\n  console.log(`Processing progress: ${data.percent}%`);\n  updateProcessingBar(data.percent);\n});\n\nsocket.on('processingComplete', (data) => {\n  console.log(`Processing complete: ${data.totalChunks} chunks created`);\n});\n\nsocket.on('processingError', (data) => {\n  console.error(`Processing error: ${data.error}`);\n});\n\n// Leave the room when done\nfunction cleanup() {\n  socket.emit('leaveUploadRoom', uploadId);\n}\n```\n",
+    "description": "\n# FormForge RAG WebSocket API Documentation\n\nThis WebSocket API provides real-time communication capabilities for the FormForge RAG Server.\nIt uses Socket.IO as the underlying transport protocol for bidirectional, event-based communication.\n\n## Main Features\n\n* Real-time upload progress tracking\n* Upload completion notifications\n* Error reporting for failed uploads\n* Processing status for document ingestion\n* Room-based communication for isolating upload events\n* Workout plan generation progress tracking\n\n## Socket.IO Room Pattern\n\nThe server uses a room-based pattern for delivering targeted events:\n* When joining an upload room, clients are subscribed to `upload:{uploadId}`\n* When joining a workout plan room, clients are subscribed to `workoutPlan:{planId}`\n* All progress events are emitted only to clients in the appropriate room\n* This ensures clients only receive events relevant to their requests\n\n## Client Integration Example\n\n```javascript\nimport { io } from 'socket.io-client';\n\n// Connect to the WebSocket server\nconst socket = io('http://localhost:3000');\n\n// After starting a file upload and receiving uploadId from the response\nconst uploadId = \"upload-123\";\n\n// Join a specific upload room to receive updates\nsocket.emit('joinUploadRoom', uploadId);\n\n// Listen for progress updates\nsocket.on('uploadProgress', (data) => {\n  console.log(`Upload ${data.uploadId} progress: ${data.percent}%`);\n  updateProgressBar(data.percent);\n});\n\n// Listen for completion\nsocket.on('uploadComplete', (data) => {\n  console.log(`Upload completed: ${data.filename} ready for processing`);\n  showCompletionMessage(data);\n});\n\n// Listen for errors\nsocket.on('uploadError', (data) => {\n  console.error(`Upload error: ${data.error}`);\n  showErrorMessage(data.error);\n});\n\n// Listen for processing events\nsocket.on('processingStart', (data) => {\n  console.log(`Processing started for ${data.totalFiles} files`);\n});\n\nsocket.on('processingProgress', (data) => {\n  console.log(`Processing progress: ${data.percent}%`);\n  updateProcessingBar(data.percent);\n});\n\nsocket.on('processingComplete', (data) => {\n  console.log(`Processing complete: ${data.totalChunks} chunks created`);\n});\n\nsocket.on('processingError', (data) => {\n  console.error(`Processing error: ${data.error}`);\n});\n\n// For workout plan generation\nconst planId = \"plan-123\";\nsocket.emit('joinWorkoutPlanRoom', planId);\n\nsocket.on('workoutPlanProgress', (data) => {\n  console.log(`Workout plan ${data.planId} progress: ${data.progress}%`);\n  console.log(`Current step: ${data.step}`);\n  updateWorkoutPlanProgressBar(data.progress);\n});\n\nsocket.on('workoutPlanComplete', (data) => {\n  console.log(`Workout plan generation complete`); \n  displayWorkoutPlan(data.result);\n});\n\nsocket.on('workoutPlanError', (data) => {\n  console.error(`Workout plan error: ${data.error}`);\n  showErrorMessage(data.error);\n});\n\n// Leave the room when done\nfunction cleanup() {\n  socket.emit('leaveUploadRoom', uploadId);\n  socket.emit('leaveWorkoutPlanRoom', planId);\n}\n```\n",
     "contact": {
       "name": "FormForge Support",
       "url": "https://formforgerag.example.com/support",
@@ -73,39 +73,39 @@
     },
     "uploadProgress": {
       "address": "uploadProgress",
-      "description": "Channel for receiving real-time upload progress updates. Events are emitted to the 'upload:{uploadId}' room.",
+      "description": "Channel for receiving upload progress events.",
       "messages": {
         "uploadProgressMessage": {
           "name": "UploadProgress Message",
-          "description": "Contains information about the current progress of an upload",
+          "description": "Updates about the upload progress",
           "payload": {
             "type": "object",
             "properties": {
               "uploadId": {
                 "type": "string",
-                "description": "Unique ID for the upload",
+                "description": "The unique upload ID",
                 "example": "upload-1746970014231-z0ecgk2"
               },
               "bytesReceived": {
                 "type": "integer",
                 "description": "Number of bytes received so far",
-                "example": 1048576
+                "example": 1024000
               },
               "bytesExpected": {
                 "type": "integer",
-                "description": "Total number of bytes expected for the complete upload",
-                "example": 5242880
+                "description": "Total number of bytes expected",
+                "example": 2048000
               },
               "percent": {
-                "type": "integer",
-                "description": "Percentage of upload completed (0-100)",
+                "type": "number",
+                "description": "Percentage of upload completed",
                 "minimum": 0,
                 "maximum": 100,
-                "example": 20
+                "example": 50
               },
               "completed": {
                 "type": "boolean",
-                "description": "Whether the upload has completed (will be false during progress events)",
+                "description": "Whether the upload is completed",
                 "example": false
               }
             },
@@ -116,84 +116,84 @@
     },
     "uploadComplete": {
       "address": "uploadComplete",
-      "description": "Channel for receiving upload completion notifications. Events are emitted to the 'upload:{uploadId}' room.",
+      "description": "Channel for receiving upload completion notifications.",
       "messages": {
         "uploadCompleteMessage": {
           "name": "UploadComplete Message",
-          "description": "Contains information about a completed upload including processing results",
+          "description": "Notification that an upload has completed successfully",
           "payload": {
             "type": "object",
             "properties": {
               "uploadId": {
                 "type": "string",
-                "description": "Unique ID for the upload",
+                "description": "The unique upload ID",
                 "example": "upload-1746970014231-z0ecgk2"
               },
               "message": {
                 "type": "string",
-                "description": "Success message",
-                "example": "File uploaded successfully and ready for processing"
+                "description": "A success message",
+                "example": "File uploaded successfully"
               },
               "filename": {
                 "type": "string",
-                "description": "Original filename",
+                "description": "The name of the uploaded file",
                 "example": "document.pdf"
               },
               "fileId": {
                 "type": "string",
-                "description": "ID for the specific file",
-                "example": "file-1746970014231-a1b2c3"
+                "description": "The ID assigned to the file",
+                "example": "file-1746970014231-z0ecgk2"
               },
               "status": {
                 "type": "string",
-                "description": "Current file status",
-                "example": "uploaded"
+                "description": "The status of the upload",
+                "example": "completed"
               },
               "completed": {
                 "type": "boolean",
-                "description": "Always true for completion events",
+                "description": "Whether the upload is completed",
                 "example": true
               },
               "bytesReceived": {
                 "type": "integer",
-                "description": "Final number of bytes received",
-                "example": 5242880
+                "description": "Number of bytes received",
+                "example": 2048000
               },
               "bytesExpected": {
                 "type": "integer",
-                "description": "Total bytes expected",
-                "example": 5242880
+                "description": "Total number of bytes expected",
+                "example": 2048000
               },
               "percent": {
-                "type": "integer",
-                "description": "Final percentage (should be 100)",
+                "type": "number",
+                "description": "Percentage of upload completed",
                 "example": 100
               }
             },
-            "required": ["uploadId", "message", "completed"]
+            "required": ["uploadId", "status", "completed"]
           }
         }
       }
     },
     "uploadError": {
       "address": "uploadError",
-      "description": "Channel for receiving upload error notifications. Events are emitted to the 'upload:{uploadId}' room.",
+      "description": "Channel for receiving upload error notifications.",
       "messages": {
         "uploadErrorMessage": {
           "name": "UploadError Message",
-          "description": "Contains error information about a failed upload",
+          "description": "Notification that an upload has failed",
           "payload": {
             "type": "object",
             "properties": {
               "uploadId": {
                 "type": "string",
-                "description": "Unique ID for the upload",
+                "description": "The unique upload ID",
                 "example": "upload-1746970014231-z0ecgk2"
               },
               "error": {
                 "type": "string",
                 "description": "Error message",
-                "example": "File format not supported"
+                "example": "File type not supported"
               }
             },
             "required": ["uploadId", "error"]
@@ -203,159 +203,161 @@
     },
     "processingStart": {
       "address": "processingStart",
-      "description": "Channel for receiving file processing start notifications. Events are emitted to the 'upload:{uploadId}' room when processing begins.",
+      "description": "Channel for receiving notifications when file processing starts.",
       "messages": {
         "processingStartMessage": {
           "name": "ProcessingStart Message",
-          "description": "Contains information about the start of file processing",
+          "description": "Notification that processing of uploaded files has started",
           "payload": {
             "type": "object",
             "properties": {
               "uploadId": {
                 "type": "string",
-                "description": "Unique ID for the upload",
+                "description": "The unique upload ID",
                 "example": "upload-1746970014231-z0ecgk2"
               },
               "processingId": {
                 "type": "string",
-                "description": "Unique ID for this processing job",
-                "example": "proc-1746970021896-upload-1746970014231-z0ecgk2"
+                "description": "The unique processing ID",
+                "example": "proc-1746970014231-z0ecgk2"
               },
               "totalFiles": {
                 "type": "integer",
-                "description": "Total number of files to be processed",
-                "example": 1
+                "description": "Total number of files to process",
+                "example": 3
               },
               "status": {
                 "type": "string",
-                "description": "Current status of the processing operation",
+                "description": "The status of the processing",
                 "enum": [
-                  "analyzing",
+                  "queued",
+                  "splitting",
                   "processing",
                   "embedding",
-                  "file_complete",
-                  "complete",
+                  "indexing",
+                  "completed",
+                  "failed",
                   "error"
                 ],
-                "example": "analyzing"
+                "example": "processing"
               },
               "message": {
                 "type": "string",
-                "description": "Human-readable message describing the current processing status",
-                "example": "Analyzing 1 files..."
+                "description": "A status message",
+                "example": "Starting to process 3 files"
               },
               "files": {
                 "type": "array",
-                "description": "List of files that will be processed",
+                "description": "List of files being processed",
                 "items": {
                   "type": "object",
                   "properties": {
                     "fileId": {
                       "type": "string",
-                      "description": "ID for the file",
-                      "example": "file-1746970014231-a1b2c3"
+                      "description": "The unique file ID",
+                      "example": "file-1746970014231-z0ecgk2"
                     },
                     "filename": {
                       "type": "string",
-                      "description": "Original filename",
+                      "description": "The name of the file",
                       "example": "document.pdf"
                     }
                   }
                 }
               }
             },
-            "required": ["uploadId", "processingId", "totalFiles"]
+            "required": ["uploadId", "processingId", "status"]
           }
         }
       }
     },
     "processingProgress": {
       "address": "processingProgress",
-      "description": "Channel for receiving file processing progress updates. Events are emitted to the 'upload:{uploadId}' room.",
+      "description": "Channel for receiving processing progress updates.",
       "messages": {
         "processingProgressMessage": {
           "name": "ProcessingProgress Message",
-          "description": "Contains information about the current progress of file processing and embedding",
+          "description": "Updates about the processing progress",
           "payload": {
             "type": "object",
             "properties": {
               "uploadId": {
                 "type": "string",
-                "description": "Unique ID for the upload",
+                "description": "The unique upload ID",
                 "example": "upload-1746970014231-z0ecgk2"
               },
               "processingId": {
                 "type": "string",
-                "description": "Unique ID for this processing job",
-                "example": "proc-1746970021896-upload-1746970014231-z0ecgk2"
+                "description": "The unique processing ID",
+                "example": "proc-1746970014231-z0ecgk2"
               },
               "currentFile": {
-                "type": ["string", "null"],
-                "description": "Name of the file currently being processed (null when between files)",
+                "type": "string",
+                "description": "The name of the file currently being processed",
                 "example": "document.pdf"
               },
               "fileId": {
-                "type": ["string", "null"],
-                "description": "ID of the file currently being processed (null when between files)",
-                "example": "file-1746970014231-a1b2c3"
+                "type": "string",
+                "description": "The ID of the file currently being processed",
+                "example": "file-1746970014231-z0ecgk2"
               },
               "fileIndex": {
                 "type": "integer",
-                "description": "Index of the current file in the processing queue (0-based)",
-                "example": 0
+                "description": "Index of the current file (0-based)",
+                "example": 1
               },
               "processedFiles": {
                 "type": "integer",
                 "description": "Number of files processed so far",
-                "example": 0
+                "example": 1
               },
               "totalFiles": {
                 "type": "integer",
                 "description": "Total number of files to process",
-                "example": 1
+                "example": 3
               },
               "percent": {
-                "type": "integer",
-                "description": "Overall percentage of processing completed (0-100). This is the field used by the frontend for main progress display.",
+                "type": "number",
+                "description": "Overall percentage of processing completed",
                 "minimum": 0,
                 "maximum": 100,
-                "example": 50
+                "example": 33
               },
               "fileProgress": {
-                "type": "integer",
-                "description": "Percentage of the current file's processing completed (0-100)",
+                "type": "number",
+                "description": "Percentage of current file processed",
                 "minimum": 0,
                 "maximum": 100,
                 "example": 75
               },
               "overallProgress": {
-                "type": "integer",
-                "description": "Percentage of processing completed across all files (0-100). Equivalent to 'percent'.",
+                "type": "number",
+                "description": "Overall percentage including all files",
                 "minimum": 0,
                 "maximum": 100,
-                "example": 50
+                "example": 45
               },
               "embeddingProgress": {
-                "type": "integer",
-                "description": "Percentage of embedding process completed across all chunks (0-100)",
+                "type": "number",
+                "description": "Percentage of embedding completed",
                 "minimum": 0,
                 "maximum": 100,
-                "example": 60
+                "example": 45
               },
               "currentChunk": {
                 "type": "integer",
-                "description": "Current chunk being processed in the current file",
-                "example": 3
+                "description": "Current chunk being processed",
+                "example": 5
               },
               "totalChunks": {
                 "type": "integer",
                 "description": "Total number of chunks in the current file",
-                "example": 5
+                "example": 10
               },
               "processedChunks": {
                 "type": "integer",
-                "description": "Total number of chunks processed so far across all files",
-                "example": 10
+                "description": "Number of chunks processed so far",
+                "example": 5
               },
               "chunkSize": {
                 "type": "integer",
@@ -364,67 +366,69 @@
               },
               "status": {
                 "type": "string",
-                "description": "Current status of the processing operation",
+                "description": "The status of the processing",
                 "enum": [
-                  "analyzing",
+                  "queued",
+                  "splitting",
                   "processing",
                   "embedding",
-                  "file_complete",
-                  "complete",
+                  "indexing",
+                  "completed",
+                  "failed",
                   "error"
                 ],
                 "example": "embedding"
               },
               "message": {
                 "type": "string",
-                "description": "Human-readable message describing the current processing status",
-                "example": "Embedding chunk 3/5 of file 1/2: document.pdf"
+                "description": "A status message",
+                "example": "Embedding chunk 5/10 of file 2/3: document.pdf"
               }
             },
-            "required": ["uploadId", "processedFiles", "totalFiles", "percent"]
+            "required": ["uploadId", "processingId", "status"]
           }
         }
       }
     },
     "processingComplete": {
       "address": "processingComplete",
-      "description": "Channel for receiving file processing completion notifications. Events are emitted to the 'upload:{uploadId}' room.",
+      "description": "Channel for receiving notifications when processing is complete.",
       "messages": {
         "processingCompleteMessage": {
           "name": "ProcessingComplete Message",
-          "description": "Contains information about completed file processing, including chunk statistics",
+          "description": "Notification that processing has completed successfully",
           "payload": {
             "type": "object",
             "properties": {
               "uploadId": {
                 "type": "string",
-                "description": "Unique ID for the upload",
+                "description": "The unique upload ID",
                 "example": "upload-1746970014231-z0ecgk2"
               },
               "processingId": {
                 "type": "string",
-                "description": "Unique ID for this processing job",
-                "example": "proc-1746970021896-upload-1746970014231-z0ecgk2"
+                "description": "The unique processing ID",
+                "example": "proc-1746970014231-z0ecgk2"
               },
               "processedFiles": {
                 "type": "integer",
-                "description": "Number of files processed successfully",
-                "example": 1
+                "description": "Number of files processed",
+                "example": 3
               },
               "totalFiles": {
                 "type": "integer",
-                "description": "Total number of files attempted",
-                "example": 1
+                "description": "Total number of files processed",
+                "example": 3
               },
               "processedChunks": {
                 "type": "integer",
-                "description": "Total number of chunks processed",
-                "example": 15
+                "description": "Number of chunks processed",
+                "example": 25
               },
               "totalChunks": {
                 "type": "integer",
-                "description": "Total number of text chunks created",
-                "example": 15
+                "description": "Total number of chunks",
+                "example": 25
               },
               "totalCharacters": {
                 "type": "integer",
@@ -432,48 +436,48 @@
                 "example": 25000
               },
               "overallProgress": {
-                "type": "integer",
-                "description": "Final processing progress percentage (should be 100)",
+                "type": "number",
+                "description": "Overall percentage",
                 "minimum": 0,
                 "maximum": 100,
                 "example": 100
               },
               "status": {
                 "type": "string",
-                "description": "Final status of the processing operation",
-                "enum": ["complete", "partial_complete", "error"],
-                "example": "complete"
+                "description": "The status of the processing",
+                "enum": ["completed"],
+                "example": "completed"
               },
               "message": {
                 "type": "string",
-                "description": "Human-readable message describing the completion status",
-                "example": "Processing completed. Processed 1/1 files with 15 chunks and 25000 characters."
+                "description": "A status message",
+                "example": "Processing completed successfully"
               },
               "results": {
                 "type": "array",
-                "description": "Detailed results for each processed file",
+                "description": "Results of processing each file",
                 "items": {
                   "type": "object",
                   "properties": {
                     "fileId": {
                       "type": "string",
-                      "description": "ID for the file",
-                      "example": "file-1746970014231-a1b2c3"
+                      "description": "The unique file ID",
+                      "example": "file-1746970014231-z0ecgk2"
                     },
                     "filename": {
                       "type": "string",
-                      "description": "Original filename",
+                      "description": "The name of the file",
                       "example": "document.pdf"
                     },
                     "chunks": {
                       "type": "integer",
-                      "description": "Number of chunks created for this file",
-                      "example": 15
+                      "description": "Number of chunks for this file",
+                      "example": 10
                     },
                     "totalCharacters": {
                       "type": "integer",
-                      "description": "Number of characters in this file",
-                      "example": 25000
+                      "description": "Total number of characters in this file",
+                      "example": 10000
                     }
                   }
                 }
@@ -483,7 +487,9 @@
               "uploadId",
               "processingId",
               "processedFiles",
-              "totalFiles"
+              "totalFiles",
+              "status",
+              "results"
             ]
           }
         }
@@ -491,67 +497,231 @@
     },
     "processingError": {
       "address": "processingError",
-      "description": "Channel for receiving file processing error notifications. Events are emitted to the 'upload:{uploadId}' room.",
+      "description": "Channel for receiving notifications when processing fails.",
       "messages": {
         "processingErrorMessage": {
           "name": "ProcessingError Message",
-          "description": "Contains error information about a failed processing job",
+          "description": "Notification that processing has failed",
           "payload": {
             "type": "object",
             "properties": {
               "uploadId": {
                 "type": "string",
-                "description": "Unique ID for the upload",
+                "description": "The unique upload ID",
                 "example": "upload-1746970014231-z0ecgk2"
               },
               "processingId": {
                 "type": "string",
-                "description": "Unique ID for this processing job",
-                "example": "proc-1746970021896-upload-1746970014231-z0ecgk2"
+                "description": "The unique processing ID",
+                "example": "proc-1746970014231-z0ecgk2"
               },
               "fileId": {
-                "type": ["string", "null"],
-                "description": "ID of the file that failed to process (if applicable)",
-                "example": "file-1746970014231-a1b2c3"
+                "type": "string",
+                "description": "The ID of the file that caused the error",
+                "example": "file-1746970014231-z0ecgk2"
               },
               "filename": {
-                "type": ["string", "null"],
-                "description": "Name of the file that failed to process (if applicable)",
+                "type": "string",
+                "description": "The name of the file that caused the error",
                 "example": "document.pdf"
               },
               "fileIndex": {
-                "type": ["integer", "null"],
-                "description": "Index of the file that failed in the processing queue (0-based)",
-                "example": 0
+                "type": "integer",
+                "description": "Index of the file that caused the error",
+                "example": 1
               },
               "processedFiles": {
-                "type": ["integer", "null"],
-                "description": "Number of files processed before the error occurred",
-                "example": 0
+                "type": "integer",
+                "description": "Number of files processed before the error",
+                "example": 1
               },
               "totalFiles": {
-                "type": ["integer", "null"],
-                "description": "Total number of files in the processing job",
-                "example": 1
+                "type": "integer",
+                "description": "Total number of files to process",
+                "example": 3
               },
               "error": {
                 "type": "string",
                 "description": "Error message",
-                "example": "Failed to extract text from PDF"
+                "example": "Failed to parse PDF file"
               },
               "status": {
                 "type": "string",
-                "description": "Status indicating the error type",
-                "enum": ["error", "partial_error"],
+                "description": "The status of the processing",
+                "enum": ["error"],
                 "example": "error"
               },
               "message": {
                 "type": "string",
-                "description": "Human-readable message describing the error",
-                "example": "Error processing file 1/1: document.pdf"
+                "description": "A detailed error message",
+                "example": "Failed to process file document.pdf: Could not parse PDF content"
               }
             },
-            "required": ["uploadId", "processingId", "error"]
+            "required": ["uploadId", "processingId", "error", "status"]
+          }
+        }
+      }
+    },
+    "joinWorkoutPlanRoom": {
+      "address": "joinWorkoutPlanRoom",
+      "description": "Channel for joining a workout plan room to receive notifications for a specific workout plan generation. Server creates a room named 'workoutPlan:{planId}'.",
+      "messages": {
+        "joinWorkoutPlanRoomMessage": {
+          "name": "JoinWorkoutPlanRoom Message",
+          "description": "The unique plan ID string that identifies which workout plan room to join",
+          "payload": {
+            "type": "string",
+            "description": "The unique workout plan ID (server will prepend 'workoutPlan:' to create the room name)",
+            "example": "plan-12345-abcde"
+          }
+        }
+      }
+    },
+    "leaveWorkoutPlanRoom": {
+      "address": "leaveWorkoutPlanRoom",
+      "description": "Channel for leaving a workout plan room to stop receiving notifications for a specific workout plan.",
+      "messages": {
+        "leaveWorkoutPlanRoomMessage": {
+          "name": "LeaveWorkoutPlanRoom Message",
+          "description": "The unique plan ID string that identifies which workout plan room to leave",
+          "payload": {
+            "type": "string",
+            "description": "The unique workout plan ID",
+            "example": "plan-12345-abcde"
+          }
+        }
+      }
+    },
+    "workoutPlanProgress": {
+      "address": "workoutPlanProgress",
+      "description": "Channel for receiving workout plan generation progress updates.",
+      "messages": {
+        "workoutPlanProgressMessage": {
+          "name": "WorkoutPlanProgress Message",
+          "description": "Updates about the current progress of workout plan generation",
+          "payload": {
+            "type": "object",
+            "properties": {
+              "planId": {
+                "type": "string",
+                "description": "The unique workout plan ID",
+                "example": "plan-12345-abcde"
+              },
+              "status": {
+                "type": "string",
+                "description": "Current status of the workout plan generation",
+                "enum": ["queued", "generating", "completed", "failed"],
+                "example": "generating"
+              },
+              "progress": {
+                "type": "number",
+                "description": "Progress percentage of the workout plan generation",
+                "minimum": 0,
+                "maximum": 100,
+                "example": 45
+              },
+              "step": {
+                "type": "string",
+                "description": "Current step in the generation process",
+                "example": "Creating workout plan with retrieved knowledge"
+              },
+              "message": {
+                "type": "string",
+                "description": "Additional status message",
+                "example": "Processing exercise information"
+              }
+            },
+            "required": ["planId", "status", "progress", "step"]
+          }
+        }
+      }
+    },
+    "workoutPlanComplete": {
+      "address": "workoutPlanComplete",
+      "description": "Channel for receiving notifications when a workout plan generation is complete.",
+      "messages": {
+        "workoutPlanCompleteMessage": {
+          "name": "WorkoutPlanComplete Message",
+          "description": "Notification that a workout plan has been successfully generated",
+          "payload": {
+            "type": "object",
+            "properties": {
+              "planId": {
+                "type": "string",
+                "description": "The unique workout plan ID",
+                "example": "plan-12345-abcde"
+              },
+              "status": {
+                "type": "string",
+                "description": "Status of the workout plan generation (completed)",
+                "enum": ["completed"],
+                "example": "completed"
+              },
+              "progress": {
+                "type": "number",
+                "description": "Progress percentage (always 100 for completed plans)",
+                "enum": [100],
+                "example": 100
+              },
+              "step": {
+                "type": "string",
+                "description": "Final step message",
+                "example": "Workout plan generation completed"
+              },
+              "result": {
+                "type": "object",
+                "description": "The complete workout plan data",
+                "example": {
+                  "program_name": "Beginner Strength Building Program",
+                  "program_goal": "Build foundational strength with calisthenics",
+                  "program_description": "A 3-day program designed for beginners to build strength using bodyweight exercises.",
+                  "required_gear": ["Pull-up bar", "Resistance band"],
+                  "exercises": [],
+                  "workout_plan": {
+                    "structure_type": "Weekly Split",
+                    "schedule": []
+                  }
+                }
+              }
+            },
+            "required": ["planId", "status", "progress", "step", "result"]
+          }
+        }
+      }
+    },
+    "workoutPlanError": {
+      "address": "workoutPlanError",
+      "description": "Channel for receiving notifications when a workout plan generation fails.",
+      "messages": {
+        "workoutPlanErrorMessage": {
+          "name": "WorkoutPlanError Message",
+          "description": "Notification that a workout plan generation has failed",
+          "payload": {
+            "type": "object",
+            "properties": {
+              "planId": {
+                "type": "string",
+                "description": "The unique workout plan ID",
+                "example": "plan-12345-abcde"
+              },
+              "status": {
+                "type": "string",
+                "description": "Status of the workout plan generation (failed)",
+                "enum": ["failed"],
+                "example": "failed"
+              },
+              "error": {
+                "type": "string",
+                "description": "Error message explaining why generation failed",
+                "example": "Failed to retrieve documents by file IDs"
+              },
+              "step": {
+                "type": "string",
+                "description": "Step where the error occurred",
+                "example": "Retrieving relevant documents"
+              }
+            },
+            "required": ["planId", "status", "error"]
           }
         }
       }
@@ -561,7 +731,7 @@
     "securitySchemes": {
       "socketIoAuth": {
         "type": "userPassword",
-        "description": "Socket.IO allows connection authentication through query parameters or headers"
+        "description": "Optional authentication for Socket.IO connections based on JWT tokens."
       }
     }
   }

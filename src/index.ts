@@ -9,6 +9,7 @@ import swaggerJsdoc from "swagger-jsdoc";
 import swaggerUi from "swagger-ui-express";
 import ragRoutes from "./routes/ragRoutes";
 import fileRoutes from "./routes/fileRoutes";
+import workoutPlanRoutes from "./routes/workoutPlanRoutes";
 import { initSocketIO } from "./services/socketService";
 
 // Load environment variables
@@ -59,6 +60,9 @@ app.use(morgan("dev"));
 // API Routes
 app.use("/api/rag", ragRoutes);
 app.use("/api/files", fileRoutes);
+
+// Register the workout plan routes
+app.use("/api/workout-plans", workoutPlanRoutes);
 
 // OpenAPI Documentation
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocs));

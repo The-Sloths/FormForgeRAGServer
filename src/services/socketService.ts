@@ -2,6 +2,7 @@ import { Server as SocketIOServer } from "socket.io";
 import { Server as HttpServer } from "http";
 import { Server as HttpsServer } from "https";
 import { getUploadProgress } from "./uploadProgressService";
+import { getWorkoutPlanStatus } from "./workoutPlanService";
 
 // Singleton instance of socket.io server
 let io: SocketIOServer | null = null;
@@ -21,6 +22,7 @@ export const initSocketIO = (server: HttpServer | HttpsServer) => {
   io.on("connection", (socket) => {
     console.log("Client connected:", socket.id);
 
+    // Upload room events
     socket.on("joinUploadRoom", (uploadId: string) => {
       socket.join(`upload:${uploadId}`);
       console.log(`Client ${socket.id} joined upload room: ${uploadId}`);
@@ -53,6 +55,31 @@ export const initSocketIO = (server: HttpServer | HttpsServer) => {
     socket.on("leaveUploadRoom", (uploadId: string) => {
       socket.leave(`upload:${uploadId}`);
       console.log(`Client ${socket.id} left upload room: ${uploadId}`);
+    });
+
+    // Workout plan room events
+    socket.on("joinWorkoutPlanRoom", (planId: string) => {
+      socket.join(`workoutPlan:${planId}`);
+      console.log(`Client ${socket.id} joined workout plan room: ${planId}`);
+
+      // Send the current progress status immediately to the newly joined client
+      const planStatus = getWorkoutPlanStatus(planId);
+      if (planStatus) {
+        // Send current status to just this socket
+        socket.emit("workoutPlanProgress", planStatus);
+
+        // If already completed or failed, send the appropriate event
+        if (planStatus.status === "completed") {
+          socket.emit("workoutPlanComplete", planStatus);
+        } else if (planStatus.status === "failed") {
+          socket.emit("workoutPlanError", planStatus);
+        }
+      }
+    });
+
+    socket.on("leaveWorkoutPlanRoom", (planId: string) => {
+      socket.leave(`workoutPlan:${planId}`);
+      console.log(`Client ${socket.id} left workout plan room: ${planId}`);
     });
 
     socket.on("disconnect", () => {
@@ -177,6 +204,48 @@ export const emitProcessingError = (uploadId: string, error: any) => {
 
   io.to(`upload:${uploadId}`).emit("processingError", {
     uploadId,
+    ...error,
+  });
+};
+
+/**
+ * Emit workout plan progress event
+ * @param planId Workout plan ID
+ * @param data Progress data
+ */
+export const emitWorkoutPlanProgress = (planId: string, data: any) => {
+  if (!io) return;
+
+  io.to(`workoutPlan:${planId}`).emit("workoutPlanProgress", {
+    planId,
+    ...data,
+  });
+};
+
+/**
+ * Emit workout plan complete event
+ * @param planId Workout plan ID
+ * @param data Completion data
+ */
+export const emitWorkoutPlanComplete = (planId: string, data: any) => {
+  if (!io) return;
+
+  io.to(`workoutPlan:${planId}`).emit("workoutPlanComplete", {
+    planId,
+    ...data,
+  });
+};
+
+/**
+ * Emit workout plan error event
+ * @param planId Workout plan ID
+ * @param error Error message or object
+ */
+export const emitWorkoutPlanError = (planId: string, error: any) => {
+  if (!io) return;
+
+  io.to(`workoutPlan:${planId}`).emit("workoutPlanError", {
+    planId,
     ...error,
   });
 };

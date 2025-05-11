@@ -74,7 +74,7 @@ END;
 $$;
 ```
 
-Development
+## Development
 
 Run the development server:
 
