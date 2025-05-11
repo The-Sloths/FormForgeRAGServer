@@ -18,9 +18,12 @@ import {
 } from "../services/socketService";
 import fs from "fs";
 import path from "path";
+import { v4 as uuidv4 } from "uuid";
 
 // Storage for uploaded files that are pending processing
 const pendingFiles = new Map<string, FileDocument[]>();
+// Additional index to look up files by file ID
+const fileIdToUploadId = new Map<string, string>();
 
 /**
  * Handle file upload without immediate processing
@@ -62,8 +65,12 @@ export async function uploadFile(req: Request, res: Response) {
         uploadId,
       });
     }
+
+    // Generate a unique ID for the file (use the actual filename from the path)
+    const fileId = path.basename(file.path);
+
     const fileDoc: FileDocument = {
-      id: uploadId || Date.now().toString(),
+      id: fileId, // Use the filename as the ID
       filePath: file.path,
       fileType: fileType,
       originalName: file.originalname,
@@ -76,7 +83,9 @@ export async function uploadFile(req: Request, res: Response) {
     };
 
     // Make sure uploadId is defined before using it
-    const safeUploadId = uploadId || fileDoc.id;
+    const safeUploadId =
+      uploadId ||
+      `upload-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
     // Store the uploaded file in our pending files map
     if (!pendingFiles.has(safeUploadId)) {
@@ -89,12 +98,15 @@ export async function uploadFile(req: Request, res: Response) {
       uploadFiles.push(fileDoc);
     }
 
+    // Add to our file ID index using the filename as the key
+    fileIdToUploadId.set(fileId, safeUploadId);
+
     // Mark upload as complete but not processed
     if (uploadId) {
       completeUpload(uploadId, {
         message: "File uploaded successfully and ready for processing",
         filename: fileDoc.originalName,
-        fileId: fileDoc.id,
+        fileId: fileDoc.id, // This will now be the filename
         status: "uploaded",
       });
     }
@@ -105,12 +117,12 @@ export async function uploadFile(req: Request, res: Response) {
     return res.status(200).json({
       message: "File uploaded successfully and ready for processing",
       filename: fileDoc.originalName,
-      fileId: fileDoc.id,
+      fileId: fileDoc.id, // This will now be the filename
       uploadId: safeUploadId,
       status: "uploaded",
       files: responseFiles
         ? responseFiles.map((file) => ({
-            fileId: file.id,
+            fileId: file.id, // This will now be the filename
             filename: file.originalName,
             fileType: file.fileType,
             status: file.status,
@@ -144,28 +156,42 @@ export async function uploadFile(req: Request, res: Response) {
  */
 export async function processFiles(req: Request, res: Response) {
   try {
-    const { uploadId, fileIds } = req.body;
+    // Accept either uploadId or fileId for processing
+    const { uploadId, fileId, fileIds } = req.body;
 
-    if (!uploadId || !pendingFiles.has(uploadId)) {
+    let targetUploadId = uploadId;
+    let targetFileIds: string[] = fileIds || [];
+
+    // If fileId is provided but uploadId is not, look up the uploadId
+    if (!uploadId && fileId) {
+      const associatedUploadId = fileIdToUploadId.get(fileId);
+      if (associatedUploadId) {
+        targetUploadId = associatedUploadId;
+        targetFileIds = [fileId]; // Process just this file
+      }
+    }
+
+    // If we don't have an uploadId at this point, we can't proceed
+    if (!targetUploadId || !pendingFiles.has(targetUploadId)) {
       return res.status(404).json({
         error: "Not Found",
-        message: "No uploaded files found for the given uploadId",
+        message: "No uploaded files found for the given ID",
       });
     }
 
     // Get files to process (either all files for the uploadId or specific fileIds)
-    const filesFromMap = pendingFiles.get(uploadId);
+    const filesFromMap = pendingFiles.get(targetUploadId);
     if (!filesFromMap) {
       return res.status(404).json({
         error: "Not Found",
-        message: "No files found for the given uploadId",
+        message: "No files found for the given ID",
       });
     }
 
     let filesToProcess = [...filesFromMap];
-    if (fileIds && Array.isArray(fileIds) && fileIds.length > 0) {
+    if (targetFileIds.length > 0) {
       filesToProcess = filesToProcess.filter((file) =>
-        fileIds.includes(file.id),
+        targetFileIds.includes(file.id),
       );
     }
 
@@ -177,10 +203,10 @@ export async function processFiles(req: Request, res: Response) {
     }
 
     // Start processing asynchronously
-    const processingId = `proc-${Date.now()}-${uploadId}`;
+    const processingId = `proc-${Date.now()}-${targetUploadId}`;
 
     // Notify client that processing has started
-    emitProcessingStart(uploadId, {
+    emitProcessingStart(targetUploadId, {
       processingId,
       totalFiles: filesToProcess.length,
       files: filesToProcess.map((f) => ({
@@ -190,12 +216,12 @@ export async function processFiles(req: Request, res: Response) {
     });
 
     // Process files in background and return immediate response
-    processFilesInBackground(uploadId, processingId, filesToProcess);
+    processFilesInBackground(targetUploadId, processingId, filesToProcess);
 
     return res.status(202).json({
       message: "File processing started",
       processingId,
-      uploadId,
+      uploadId: targetUploadId,
       totalFiles: filesToProcess.length,
       files: filesToProcess.map((f) => ({
         fileId: f.id,
@@ -219,23 +245,34 @@ export async function getUploadedFiles(req: Request, res: Response) {
   try {
     const { uploadId } = req.params;
 
-    if (!uploadId || !pendingFiles.has(uploadId)) {
+    let targetUploadId = uploadId;
+
+    // If the provided ID is a file ID, convert it to an upload ID
+    if (fileIdToUploadId.has(uploadId)) {
+      // Check map first
+      targetUploadId = fileIdToUploadId.get(uploadId) || uploadId;
+    } else if (uploadId.startsWith("file-") && fileIdToUploadId.has(uploadId)) {
+      // Fallback check (should not be needed with the map check above, but keeping for safety)
+      targetUploadId = fileIdToUploadId.get(uploadId) || uploadId;
+    }
+
+    if (!targetUploadId || !pendingFiles.has(targetUploadId)) {
       return res.status(404).json({
         error: "Not Found",
-        message: "No uploaded files found for the given uploadId",
+        message: "No uploaded files found for the given ID",
       });
     }
 
-    const files = pendingFiles.get(uploadId);
+    const files = pendingFiles.get(targetUploadId);
     if (!files) {
       return res.status(404).json({
         error: "Not Found",
-        message: "No uploaded files found for the given uploadId",
+        message: "No uploaded files found for the given ID",
       });
     }
 
     return res.status(200).json({
-      uploadId,
+      uploadId: targetUploadId,
       totalFiles: files.length,
       files: files.map((file) => ({
         fileId: file.id,
@@ -254,6 +291,7 @@ export async function getUploadedFiles(req: Request, res: Response) {
     });
   }
 }
+
 /**
  * Process files in background
  * This function runs asynchronously and updates socket events as processing proceeds

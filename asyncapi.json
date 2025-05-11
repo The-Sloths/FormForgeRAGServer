@@ -4,7 +4,7 @@
   "info": {
     "title": "FormForge RAG WebSocket API",
     "version": "1.0.0",
-    "description": "\n# FormForge RAG WebSocket API Documentation\n\nThis WebSocket API provides real-time communication capabilities for the FormForge RAG Server.\nIt uses Socket.IO as the underlying transport protocol for bidirectional, event-based communication.\n\n## Main Features\n\n* Real-time upload progress tracking\n* Upload completion notifications\n* Error reporting for failed uploads\n* Room-based communication for isolating upload events\n\n## Socket.IO Room Pattern\n\nThe server uses a room-based pattern for delivering targeted events:\n* When joining a room, clients are subscribed to `upload:{uploadId}`\n* All progress events are emitted only to clients in the appropriate room\n* This ensures clients only receive events relevant to their uploads\n\n## Client Integration Example\n\n```javascript\nimport { io } from 'socket.io-client';\n\n// Connect to the WebSocket server\nconst socket = io('http://localhost:3000');\n\n// After starting a file upload and receiving uploadId from the response\nconst uploadId = \"upload-123\";\n\n// Join a specific upload room to receive updates\nsocket.emit('joinUploadRoom', uploadId);\n\n// Listen for progress updates\nsocket.on('uploadProgress', (data) => {\n  console.log(`Upload ${data.uploadId} progress: ${data.percent}%`);\n  updateProgressBar(data.percent);\n});\n\n// Listen for completion\nsocket.on('uploadComplete', (data) => {\n  console.log(`Upload completed: ${data.chunks} chunks created`);\n  showCompletionMessage(data);\n});\n\n// Listen for errors\nsocket.on('uploadError', (data) => {\n  console.error(`Upload error: ${data.error}`);\n  showErrorMessage(data.error);\n});\n\n// Leave the room when done\nfunction cleanup() {\n  socket.emit('leaveUploadRoom', uploadId);\n}\n```\n",
+    "description": "\n# FormForge RAG WebSocket API Documentation\n\nThis WebSocket API provides real-time communication capabilities for the FormForge RAG Server.\nIt uses Socket.IO as the underlying transport protocol for bidirectional, event-based communication.\n\n## Main Features\n\n* Real-time upload progress tracking\n* Upload completion notifications\n* Error reporting for failed uploads\n* Processing status for document ingestion\n* Room-based communication for isolating upload events\n\n## Socket.IO Room Pattern\n\nThe server uses a room-based pattern for delivering targeted events:\n* When joining a room, clients are subscribed to `upload:{uploadId}`\n* All progress events are emitted only to clients in the appropriate room\n* This ensures clients only receive events relevant to their uploads\n\n## Client Integration Example\n\n```javascript\nimport { io } from 'socket.io-client';\n\n// Connect to the WebSocket server\nconst socket = io('http://localhost:3000');\n\n// After starting a file upload and receiving uploadId from the response\nconst uploadId = \"upload-123\";\n\n// Join a specific upload room to receive updates\nsocket.emit('joinUploadRoom', uploadId);\n\n// Listen for progress updates\nsocket.on('uploadProgress', (data) => {\n  console.log(`Upload ${data.uploadId} progress: ${data.percent}%`);\n  updateProgressBar(data.percent);\n});\n\n// Listen for completion\nsocket.on('uploadComplete', (data) => {\n  console.log(`Upload completed: ${data.filename} ready for processing`);\n  showCompletionMessage(data);\n});\n\n// Listen for errors\nsocket.on('uploadError', (data) => {\n  console.error(`Upload error: ${data.error}`);\n  showErrorMessage(data.error);\n});\n\n// Listen for processing events\nsocket.on('processingStart', (data) => {\n  console.log(`Processing started for ${data.totalFiles} files`);\n});\n\nsocket.on('processingProgress', (data) => {\n  console.log(`Processing progress: ${data.percent}%`);\n  updateProcessingBar(data.percent);\n});\n\nsocket.on('processingComplete', (data) => {\n  console.log(`Processing complete: ${data.totalChunks} chunks created`);\n});\n\nsocket.on('processingError', (data) => {\n  console.error(`Processing error: ${data.error}`);\n});\n\n// Leave the room when done\nfunction cleanup() {\n  socket.emit('leaveUploadRoom', uploadId);\n}\n```\n",
     "contact": {
       "name": "FormForge Support",
       "url": "https://formforgerag.example.com/support",
@@ -39,9 +39,9 @@
           "name": "JoinUploadRoom Message",
           "description": "The unique upload ID string that identifies which upload room to join",
           "payload": {
-            "type": "object",
+            "type": "string",
             "description": "The unique upload ID (server will prepend 'upload:' to create the room name)",
-            "example": "upload-123e4567-e89b-12d3-a456-426614174000"
+            "example": "upload-1746970014231-z0ecgk2"
           }
         }
       }
@@ -54,9 +54,9 @@
           "name": "LeaveUploadRoom Message",
           "description": "The unique upload ID string that identifies which upload room to leave",
           "payload": {
-            "type": "object",
+            "type": "string",
             "description": "The unique upload ID (server will prepend 'upload:' to match the room name)",
-            "example": "upload-123e4567-e89b-12d3-a456-426614174000"
+            "example": "upload-1746970014231-z0ecgk2"
           }
         }
       }
@@ -67,12 +67,7 @@
       "messages": {
         "disconnectMessage": {
           "name": "Disconnect Message",
-          "description": "Message for the disconnect event.",
-          "payload": {
-            "type": "object",
-            "description": "Payload for the disconnect event.",
-            "example": "upload-123e4567-e89b-12d3-a456-426614174000"
-          }
+          "description": "Message for the disconnect event. No payload is needed for this event."
         }
       }
     },
@@ -89,7 +84,7 @@
               "uploadId": {
                 "type": "string",
                 "description": "Unique ID for the upload",
-                "example": "upload-123e4567-e89b-12d3-a456-426614174000"
+                "example": "upload-1746970014231-z0ecgk2"
               },
               "bytesReceived": {
                 "type": "integer",
@@ -113,7 +108,8 @@
                 "description": "Whether the upload has completed (will be false during progress events)",
                 "example": false
               }
-            }
+            },
+            "required": ["uploadId", "percent"]
           }
         }
       }
@@ -131,27 +127,27 @@
               "uploadId": {
                 "type": "string",
                 "description": "Unique ID for the upload",
-                "example": "upload-123e4567-e89b-12d3-a456-426614174000"
+                "example": "upload-1746970014231-z0ecgk2"
               },
               "message": {
                 "type": "string",
                 "description": "Success message",
-                "example": "File processed successfully"
+                "example": "File uploaded successfully and ready for processing"
               },
               "filename": {
                 "type": "string",
                 "description": "Original filename",
                 "example": "document.pdf"
               },
-              "chunks": {
-                "type": "integer",
-                "description": "Number of chunks created during processing",
-                "example": 42
+              "fileId": {
+                "type": "string",
+                "description": "ID for the specific file",
+                "example": "file-1746970014231-a1b2c3"
               },
-              "totalCharacters": {
-                "type": "integer",
-                "description": "Total characters processed from the document",
-                "example": 125000
+              "status": {
+                "type": "string",
+                "description": "Current file status",
+                "example": "uploaded"
               },
               "completed": {
                 "type": "boolean",
@@ -173,7 +169,8 @@
                 "description": "Final percentage (should be 100)",
                 "example": 100
               }
-            }
+            },
+            "required": ["uploadId", "message", "completed"]
           }
         }
       }
@@ -191,94 +188,239 @@
               "uploadId": {
                 "type": "string",
                 "description": "Unique ID for the upload",
-                "example": "upload-123e4567-e89b-12d3-a456-426614174000"
+                "example": "upload-1746970014231-z0ecgk2"
               },
               "error": {
                 "type": "string",
                 "description": "Error message",
                 "example": "File format not supported"
               }
-            }
+            },
+            "required": ["uploadId", "error"]
           }
         }
       }
     },
     "processingStart": {
       "address": "processingStart",
-      "description": "Channel for the processingStart event.",
+      "description": "Channel for receiving file processing start notifications. Events are emitted to the 'upload:{uploadId}' room when processing begins.",
       "messages": {
         "processingStartMessage": {
           "name": "ProcessingStart Message",
-          "description": "Message for the processingStart event.",
+          "description": "Contains information about the start of file processing",
           "payload": {
             "type": "object",
             "properties": {
               "uploadId": {
                 "type": "string",
                 "description": "Unique ID for the upload",
-                "example": "upload-123e4567-e89b-12d3-a456-426614174000"
+                "example": "upload-1746970014231-z0ecgk2"
+              },
+              "processingId": {
+                "type": "string",
+                "description": "Unique ID for this processing job",
+                "example": "proc-1746970021896-upload-1746970014231-z0ecgk2"
+              },
+              "totalFiles": {
+                "type": "integer",
+                "description": "Total number of files to be processed",
+                "example": 1
+              },
+              "files": {
+                "type": "array",
+                "description": "List of files that will be processed",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "fileId": {
+                      "type": "string",
+                      "description": "ID for the file",
+                      "example": "file-1746970014231-a1b2c3"
+                    },
+                    "filename": {
+                      "type": "string",
+                      "description": "Original filename",
+                      "example": "document.pdf"
+                    }
+                  }
+                }
               }
-            }
+            },
+            "required": ["uploadId", "processingId", "totalFiles"]
           }
         }
       }
     },
     "processingProgress": {
       "address": "processingProgress",
-      "description": "Channel for the processingProgress event.",
+      "description": "Channel for receiving file processing progress updates. Events are emitted to the 'upload:{uploadId}' room.",
       "messages": {
         "processingProgressMessage": {
           "name": "ProcessingProgress Message",
-          "description": "Message for the processingProgress event.",
+          "description": "Contains information about the current progress of file processing",
           "payload": {
             "type": "object",
             "properties": {
               "uploadId": {
                 "type": "string",
                 "description": "Unique ID for the upload",
-                "example": "upload-123e4567-e89b-12d3-a456-426614174000"
+                "example": "upload-1746970014231-z0ecgk2"
+              },
+              "processingId": {
+                "type": "string",
+                "description": "Unique ID for this processing job",
+                "example": "proc-1746970021896-upload-1746970014231-z0ecgk2"
+              },
+              "currentFile": {
+                "type": ["string", "null"],
+                "description": "Name of the file currently being processed (null when between files)",
+                "example": "document.pdf"
+              },
+              "fileId": {
+                "type": ["string", "null"],
+                "description": "ID of the file currently being processed (null when between files)",
+                "example": "file-1746970014231-a1b2c3"
+              },
+              "processedFiles": {
+                "type": "integer",
+                "description": "Number of files processed so far",
+                "example": 0
+              },
+              "totalFiles": {
+                "type": "integer",
+                "description": "Total number of files to process",
+                "example": 1
+              },
+              "percent": {
+                "type": "integer",
+                "description": "Percentage of processing completed (0-100)",
+                "minimum": 0,
+                "maximum": 100,
+                "example": 50
               }
-            }
+            },
+            "required": ["uploadId", "processingId", "percent"]
           }
         }
       }
     },
     "processingComplete": {
       "address": "processingComplete",
-      "description": "Channel for the processingComplete event.",
+      "description": "Channel for receiving file processing completion notifications. Events are emitted to the 'upload:{uploadId}' room.",
       "messages": {
         "processingCompleteMessage": {
           "name": "ProcessingComplete Message",
-          "description": "Message for the processingComplete event.",
+          "description": "Contains information about completed file processing, including chunk statistics",
           "payload": {
             "type": "object",
             "properties": {
               "uploadId": {
                 "type": "string",
                 "description": "Unique ID for the upload",
-                "example": "upload-123e4567-e89b-12d3-a456-426614174000"
+                "example": "upload-1746970014231-z0ecgk2"
+              },
+              "processingId": {
+                "type": "string",
+                "description": "Unique ID for this processing job",
+                "example": "proc-1746970021896-upload-1746970014231-z0ecgk2"
+              },
+              "processedFiles": {
+                "type": "integer",
+                "description": "Number of files processed successfully",
+                "example": 1
+              },
+              "totalFiles": {
+                "type": "integer",
+                "description": "Total number of files attempted",
+                "example": 1
+              },
+              "totalChunks": {
+                "type": "integer",
+                "description": "Total number of text chunks created",
+                "example": 15
+              },
+              "totalCharacters": {
+                "type": "integer",
+                "description": "Total number of characters processed",
+                "example": 25000
+              },
+              "results": {
+                "type": "array",
+                "description": "Detailed results for each processed file",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "fileId": {
+                      "type": "string",
+                      "description": "ID for the file",
+                      "example": "file-1746970014231-a1b2c3"
+                    },
+                    "filename": {
+                      "type": "string",
+                      "description": "Original filename",
+                      "example": "document.pdf"
+                    },
+                    "chunks": {
+                      "type": "integer",
+                      "description": "Number of chunks created for this file",
+                      "example": 15
+                    },
+                    "totalCharacters": {
+                      "type": "integer",
+                      "description": "Number of characters in this file",
+                      "example": 25000
+                    }
+                  }
+                }
               }
-            }
+            },
+            "required": [
+              "uploadId",
+              "processingId",
+              "processedFiles",
+              "totalFiles"
+            ]
           }
         }
       }
     },
     "processingError": {
       "address": "processingError",
-      "description": "Channel for the processingError event.",
+      "description": "Channel for receiving file processing error notifications. Events are emitted to the 'upload:{uploadId}' room.",
       "messages": {
         "processingErrorMessage": {
           "name": "ProcessingError Message",
-          "description": "Message for the processingError event.",
+          "description": "Contains error information about a failed processing job",
           "payload": {
             "type": "object",
             "properties": {
               "uploadId": {
                 "type": "string",
                 "description": "Unique ID for the upload",
-                "example": "upload-123e4567-e89b-12d3-a456-426614174000"
+                "example": "upload-1746970014231-z0ecgk2"
+              },
+              "processingId": {
+                "type": "string",
+                "description": "Unique ID for this processing job",
+                "example": "proc-1746970021896-upload-1746970014231-z0ecgk2"
+              },
+              "fileId": {
+                "type": ["string", "null"],
+                "description": "ID of the file that failed to process (if applicable)",
+                "example": "file-1746970014231-a1b2c3"
+              },
+              "filename": {
+                "type": ["string", "null"],
+                "description": "Name of the file that failed to process (if applicable)",
+                "example": "document.pdf"
+              },
+              "error": {
+                "type": "string",
+                "description": "Error message",
+                "example": "Failed to extract text from PDF"
               }
-            }
+            },
+            "required": ["uploadId", "processingId", "error"]
           }
         }
       }

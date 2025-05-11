@@ -37,6 +37,23 @@ const router = express.Router();
  *         metadata:
  *           source: "company-docs"
  *           category: "technical"
+ *
+ *     FileProcessRequest:
+ *       type: object
+ *       required:
+ *         - uploadId
+ *       properties:
+ *         uploadId:
+ *           type: string
+ *           description: The unique identifier for the upload (received from a previous upload response)
+ *         fileIds:
+ *           type: array
+ *           description: Optional list of specific file IDs to process (if omitted, all files in the upload will be processed)
+ *           items:
+ *             type: string
+ *       example:
+ *         uploadId: "upload-1746970014231-z0ecgk2"
+ *         fileIds: ["file-1746970014231-a1b2c3"]
  */
 
 /**
@@ -80,7 +97,7 @@ const router = express.Router();
  *                 description: JSON string of processing options
  *     responses:
  *       200:
- *         description: File processed successfully
+ *         description: File uploaded successfully
  *         content:
  *           application/json:
  *             schema:
@@ -89,18 +106,44 @@ const router = express.Router();
  *                 message:
  *                   type: string
  *                   description: Success message
+ *                   example: "File uploaded successfully and ready for processing"
  *                 filename:
  *                   type: string
  *                   description: Original filename
- *                 chunks:
- *                   type: integer
- *                   description: Number of chunks created
- *                 totalCharacters:
- *                   type: integer
- *                   description: Total characters processed
+ *                   example: "document.pdf"
+ *                 fileId:
+ *                   type: string
+ *                   description: ID for the specific file
+ *                   example: "file-1746970014231-a1b2c3"
  *                 uploadId:
  *                   type: string
  *                   description: Unique ID for tracking upload progress via WebSocket
+ *                   example: "upload-1746970014231-z0ecgk2"
+ *                 status:
+ *                   type: string
+ *                   description: Current file status
+ *                   example: "uploaded"
+ *                 files:
+ *                   type: array
+ *                   description: Array of files in this upload batch
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       fileId:
+ *                         type: string
+ *                         description: ID for each file
+ *                       filename:
+ *                         type: string
+ *                         description: Original filename
+ *                       fileType:
+ *                         type: string
+ *                         description: MIME type of the file
+ *                       status:
+ *                         type: string
+ *                         description: File status
+ *                       processed:
+ *                         type: boolean
+ *                         description: Whether the file has been processed
  *       400:
  *         description: Bad request or invalid file
  *         content:
@@ -111,12 +154,15 @@ const router = express.Router();
  *                 error:
  *                   type: string
  *                   description: Error type
+ *                   example: "Bad Request"
  *                 message:
  *                   type: string
  *                   description: Error message
+ *                   example: "Only PDF and Markdown files are supported"
  *                 uploadId:
  *                   type: string
- *                   description: Unique ID for tracking upload progress via WebSocket
+ *                   description: Unique ID for the upload
+ *                   example: "upload-1746970014231-z0ecgk2"
  *       500:
  *         description: Server error
  *         content:
@@ -127,12 +173,15 @@ const router = express.Router();
  *                 error:
  *                   type: string
  *                   description: Error type
+ *                   example: "Internal Server Error"
  *                 message:
  *                   type: string
  *                   description: Error message
+ *                   example: "Failed to process file"
  *                 uploadId:
  *                   type: string
  *                   description: Unique ID for tracking upload progress via WebSocket
+ *                   example: "upload-1746970014231-z0ecgk2"
  */
 router.post("/upload", uploadMiddleware, (req, res, next) => {
   uploadFile(req, res).catch(next);
@@ -147,6 +196,9 @@ router.post("/upload", uploadMiddleware, (req, res, next) => {
  *       Triggers processing of previously uploaded files and adds their content to the vector store.
  *       This endpoint separates the upload and processing steps for better performance.
  *
+ *       **Important**: You must first upload files using `/api/files/upload` which provides an `uploadId`.
+ *       Then use this endpoint with that exact `uploadId` value to process those files.
+ *
  *       The response includes a `processingId` that can be used to track processing via WebSocket.
  *       Connect to the WebSocket server and listen for processing events:
  *
@@ -157,6 +209,80 @@ router.post("/upload", uploadMiddleware, (req, res, next) => {
  *       socket.on('processingError', (data) => { console.log('Processing error', data.error); });
  *       ```
  *     tags: [Files]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/FileProcessRequest'
+ *     responses:
+ *       202:
+ *         description: File processing started
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   description: Success message
+ *                   example: "File processing started"
+ *                 processingId:
+ *                   type: string
+ *                   description: Unique processing ID for tracking via WebSocket
+ *                   example: "proc-1746970021896-upload-1746970014231-z0ecgk2"
+ *                 uploadId:
+ *                   type: string
+ *                   description: Original upload ID
+ *                   example: "upload-1746970014231-z0ecgk2"
+ *                 totalFiles:
+ *                   type: integer
+ *                   description: Total number of files to be processed
+ *                   example: 1
+ *                 files:
+ *                   type: array
+ *                   description: List of files that will be processed
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       fileId:
+ *                         type: string
+ *                         description: ID for each file
+ *                         example: "file-1746970014231-a1b2c3"
+ *                       filename:
+ *                         type: string
+ *                         description: Original filename
+ *                         example: "document.pdf"
+ *       404:
+ *         description: No files found for the given uploadId
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *                   description: Error type
+ *                   example: "Not Found"
+ *                 message:
+ *                   type: string
+ *                   description: Error message
+ *                   example: "No uploaded files found for the given uploadId"
+ *       500:
+ *         description: Server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *                   description: Error type
+ *                   example: "Internal Server Error"
+ *                 message:
+ *                   type: string
+ *                   description: Error message
+ *                   example: "Failed to process files"
  */
 router.post("/process", async (req, res, next) => {
   try {
@@ -165,6 +291,7 @@ router.post("/process", async (req, res, next) => {
     next(error);
   }
 });
+
 /**
  * @openapi
  * /api/files/uploaded/{uploadId}:
@@ -181,11 +308,79 @@ router.post("/process", async (req, res, next) => {
  *         schema:
  *           type: string
  *         description: The unique identifier of the upload session
+ *         example: "upload-1746970014231-z0ecgk2"
  *     responses:
  *       200:
  *         description: List of uploaded files
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 uploadId:
+ *                   type: string
+ *                   description: The upload ID requested
+ *                   example: "upload-1746970014231-z0ecgk2"
+ *                 totalFiles:
+ *                   type: integer
+ *                   description: Number of files in this upload
+ *                   example: 1
+ *                 files:
+ *                   type: array
+ *                   description: List of files in this upload
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       fileId:
+ *                         type: string
+ *                         description: Unique file ID
+ *                         example: "file-1746970014231-a1b2c3"
+ *                       filename:
+ *                         type: string
+ *                         description: Original filename
+ *                         example: "document.pdf"
+ *                       fileType:
+ *                         type: string
+ *                         description: MIME type of the file
+ *                         example: "application/pdf"
+ *                       status:
+ *                         type: string
+ *                         description: Current file status
+ *                         example: "uploaded"
+ *                       processed:
+ *                         type: boolean
+ *                         description: Whether file has been processed
+ *                         example: false
  *       404:
  *         description: Upload session not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *                   description: Error type
+ *                   example: "Not Found"
+ *                 message:
+ *                   type: string
+ *                   description: Error message
+ *                   example: "No uploaded files found for the given uploadId"
+ *       500:
+ *         description: Server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *                   description: Error type
+ *                   example: "Internal Server Error"
+ *                 message:
+ *                   type: string
+ *                   description: Error message
+ *                   example: "Failed to retrieve uploaded files"
  */
 router.get("/uploaded/:uploadId", async (req, res, next) => {
   try {
@@ -206,6 +401,80 @@ router.get("/uploaded/:uploadId", async (req, res, next) => {
  *       This endpoint can be used as an alternative to WebSocket connections
  *       for tracking upload progress, or to retrieve the final status of a
  *       completed upload.
+ *     tags: [Files]
+ *     parameters:
+ *       - in: path
+ *         name: uploadId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The unique identifier of the upload session
+ *         example: "upload-1746970014231-z0ecgk2"
+ *     responses:
+ *       200:
+ *         description: Upload status information
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 uploadId:
+ *                   type: string
+ *                   description: The upload ID requested
+ *                   example: "upload-1746970014231-z0ecgk2"
+ *                 bytesReceived:
+ *                   type: integer
+ *                   description: Bytes received so far
+ *                   example: 1048576
+ *                 bytesExpected:
+ *                   type: integer
+ *                   description: Total bytes expected
+ *                   example: 1048576
+ *                 percent:
+ *                   type: integer
+ *                   description: Upload completion percentage (0-100)
+ *                   example: 100
+ *                 completed:
+ *                   type: boolean
+ *                   description: Whether the upload is complete
+ *                   example: true
+ *                 error:
+ *                   type: string
+ *                   description: Error message if upload failed
+ *                   example: null
+ *                 createdAt:
+ *                   type: integer
+ *                   description: Timestamp when upload was created
+ *                   example: 1746970014231
+ *                 resultData:
+ *                   type: object
+ *                   description: Additional data for completed uploads
+ *       404:
+ *         description: Upload not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *                   description: Error message
+ *                   example: "Upload not found"
+ *       500:
+ *         description: Server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *                   description: Error type
+ *                   example: "Internal Server Error"
+ *                 message:
+ *                   type: string
+ *                   description: Error message
+ *                   example: "Failed to retrieve upload status"
  */
 router.get(
   "/upload-status/:uploadId",
