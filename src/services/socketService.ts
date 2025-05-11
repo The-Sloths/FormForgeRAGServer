@@ -138,6 +138,15 @@ export const emitProcessingStart = (uploadId: string, data: any) => {
 export const emitProcessingProgress = (uploadId: string, data: any) => {
   if (!io) return;
 
+  console.log(`Emitting processingProgress to room upload:${uploadId}`, {
+    event: "processingProgress",
+    roomName: `upload:${uploadId}`,
+    data: {
+      uploadId,
+      ...data,
+    },
+  });
+
   io.to(`upload:${uploadId}`).emit("processingProgress", {
     uploadId,
     ...data,

@@ -4,6 +4,7 @@ import { ChatPromptTemplate } from "@langchain/core/prompts";
 import { Document } from "@langchain/core/documents";
 import { vectorStore, model } from "../config/langchain";
 import { QueryInput, DocumentInput } from "../types/ragTypes";
+import { emitProcessingProgress } from "./socketService";
 
 /**
  * Query the RAG system with a user question
@@ -57,9 +58,21 @@ export async function queryRagSystem(params: QueryInput): Promise<string> {
 /**
  * Add a document to the vector store
  * @param document The document to add
+ * @param embeddingInfo Optional information about the embedding process for progress tracking
+ * @returns Information about the added document
  */
 export async function addDocumentToVectorStore(
   document: DocumentInput,
+  embeddingInfo?: {
+    uploadId: string;
+    processingId?: string;
+    fileId: string;
+    fileIndex: number;
+    totalFiles: number;
+    currentFile: string;
+    currentChunk: number;
+    totalChunks: number;
+  },
 ): Promise<void> {
   try {
     const { text, metadata = {} } = document;
@@ -69,7 +82,38 @@ export async function addDocumentToVectorStore(
       metadata,
     });
 
+    // Add document to vector store
     await vectorStore.addDocuments([doc]);
+
+    // Emit progress if embedding info is provided
+    if (embeddingInfo) {
+      const {
+        uploadId,
+        fileId,
+        fileIndex,
+        totalFiles,
+        currentFile,
+        currentChunk,
+        totalChunks,
+      } = embeddingInfo;
+      const fileProgress = Math.round((currentChunk / totalChunks) * 100);
+
+      // Import at the top of the file
+      // import { emitProcessingProgress } from "./socketService";
+      emitProcessingProgress(uploadId, {
+        fileId,
+        currentFile,
+        fileIndex,
+        totalFiles,
+        currentChunk,
+        totalChunks,
+        fileProgress,
+        chunkSize: text.length,
+        status: "embedding",
+        message: `Embedding chunk ${currentChunk}/${totalChunks} of file ${fileIndex + 1}/${totalFiles}: ${currentFile}`,
+      });
+    }
+
     console.log("Document added successfully");
   } catch (error) {
     console.error("Error adding document to vector store:", error);

@@ -41,22 +41,132 @@ const router = express.Router();
  *     FileProcessRequest:
  *       type: object
  *       required:
- *         - uploadId
+ *         - fileIds
  *       properties:
- *         uploadId:
- *           type: string
- *           description: The unique identifier for the upload (received from a previous upload response)
  *         fileIds:
  *           type: array
- *           description: Optional list of specific file IDs to process (if omitted, all files in the upload will be processed)
+ *           description: List of specific file IDs to process
  *           items:
  *             type: string
  *       example:
- *         uploadId: "upload-1746970014231-z0ecgk2"
- *         fileIds: ["file-1746970014231-a1b2c3"]
+ *         fileIds: ["file-1746970014231-a1b2c3.pdf", "file-1746970014231-d4e5f6.pdf"]
  */
 
 /**
+ * @openapi
+ * /api/files/process:
+ *   post:
+ *     summary: Process uploaded files and add to vector store
+ *     description: |
+ *       Triggers processing of previously uploaded files and adds their content to the vector store.
+ *       This endpoint separates the upload and processing steps for better performance.
+ *
+ *       **Important**: You must first upload files using `/api/files/upload` which provides a `fileId`
+ *       for each uploaded file. Then use this endpoint with the array of those `fileIds` to process
+ *       the specific files.
+ *
+ *       The response includes a `processingId` that can be used to track processing via WebSocket.
+ *       Connect to the WebSocket server and listen for processing events:
+ *
+ *       ```javascript
+ *       socket.on('processingStart', (data) => { console.log('Processing started'); });
+ *       socket.on('processingProgress', (data) => { console.log(`Progress: ${data.percent}%`); });
+ *       socket.on('processingComplete', (data) => { console.log('Processing complete'); });
+ *       socket.on('processingError', (data) => { console.log('Processing error', data.error); });
+ *       ```
+ *     tags: [Files]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/FileProcessRequest'
+ *     responses:
+ *       202:
+ *         description: File processing started
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   description: Success message
+ *                   example: "File processing started"
+ *                 processingId:
+ *                   type: string
+ *                   description: Unique processing ID for tracking via WebSocket
+ *                   example: "proc-1746970021896-upload-1746970014231-z0ecgk2"
+ *                 uploadId:
+ *                   type: string
+ *                   description: Original upload ID (derived from fileIds)
+ *                   example: "upload-1746970014231-z0ecgk2"
+ *                 totalFiles:
+ *                   type: integer
+ *                   description: Total number of files to be processed
+ *                   example: 2
+ *                 files:
+ *                   type: array
+ *                   description: List of files that will be processed
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       fileId:
+ *                         type: string
+ *                         description: ID for each file
+ *                         example: "file-1746970014231-a1b2c3"
+ *                       filename:
+ *                         type: string
+ *                         description: Original filename
+ *                         example: "document.pdf"
+ *       400:
+ *         description: Bad request
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *                   description: Error type
+ *                   example: "Bad Request"
+ *                 message:
+ *                   type: string
+ *                   description: Error message
+ *                   example: "fileIds array is required and cannot be empty"
+ *       404:
+ *         description: No files found for the given fileIds
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *                   description: Error type
+ *                   example: "Not Found"
+ *                 message:
+ *                   type: string
+ *                   description: Error message
+ *                   example: "No uploaded files found for the given fileId(s)"
+ *       500:
+ *         description: Server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *                   description: Error type
+ *                   example: "Internal Server Error"
+ *                 message:
+ *                   type: string
+ *                   description: Error message
+ *                   example: "Failed to process files"
+ */
+/**
+
  * @openapi
  * /api/files/upload:
  *   post:

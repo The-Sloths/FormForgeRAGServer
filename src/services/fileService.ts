@@ -7,6 +7,7 @@ import { Document } from "@langchain/core/documents";
 import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
 import { addDocumentToVectorStore } from "./ragService";
 import { FileDocument } from "../types/ragTypes";
+import { emitProcessingProgress } from "./socketService";
 
 // Convert fs.readFile to Promise-based
 const readFile = promisify(fs.readFile);
@@ -136,10 +137,17 @@ export async function prepareFileForProcessing(fileDoc: FileDocument): Promise<{
 /**
  * Process a file and add its content to the vector store
  * @param fileDoc The file document information
+ * @param uploadId The ID of the upload session for progress tracking
+ * @param fileIndex The index of the current file in the batch
+ * @param totalFiles The total number of files being processed
  * @returns Information about the processed document
  */
 export async function processFileAndAddToVectorStore(
   fileDoc: FileDocument,
+  uploadId: string,
+  fileIndex: number,
+  totalFiles: number,
+  processingId?: string,
 ): Promise<{
   filename: string;
   chunks: number;
@@ -171,10 +179,25 @@ export async function processFileAndAddToVectorStore(
         totalChunks: textChunks.length,
       };
 
-      await addDocumentToVectorStore({
-        text: textChunks[i],
-        metadata: chunkMetadata,
-      });
+      // Pass embedding information to the addDocumentToVectorStore function
+      await addDocumentToVectorStore(
+        {
+          text: textChunks[i],
+          metadata: chunkMetadata,
+        },
+        {
+          uploadId,
+          processingId,
+          fileId: fileDoc.id,
+          fileIndex,
+          totalFiles,
+          currentFile: originalName,
+          currentChunk: i + 1,
+          totalChunks: textChunks.length,
+        },
+      );
+
+      // No need to emit progress here as it's now handled in addDocumentToVectorStore
     }
 
     // Clean up temporary file if needed

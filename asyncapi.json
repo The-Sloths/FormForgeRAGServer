@@ -226,6 +226,24 @@
                 "description": "Total number of files to be processed",
                 "example": 1
               },
+              "status": {
+                "type": "string",
+                "description": "Current status of the processing operation",
+                "enum": [
+                  "analyzing",
+                  "processing",
+                  "embedding",
+                  "file_complete",
+                  "complete",
+                  "error"
+                ],
+                "example": "analyzing"
+              },
+              "message": {
+                "type": "string",
+                "description": "Human-readable message describing the current processing status",
+                "example": "Analyzing 1 files..."
+              },
               "files": {
                 "type": "array",
                 "description": "List of files that will be processed",
@@ -257,7 +275,7 @@
       "messages": {
         "processingProgressMessage": {
           "name": "ProcessingProgress Message",
-          "description": "Contains information about the current progress of file processing",
+          "description": "Contains information about the current progress of file processing and embedding",
           "payload": {
             "type": "object",
             "properties": {
@@ -281,6 +299,11 @@
                 "description": "ID of the file currently being processed (null when between files)",
                 "example": "file-1746970014231-a1b2c3"
               },
+              "fileIndex": {
+                "type": "integer",
+                "description": "Index of the current file in the processing queue (0-based)",
+                "example": 0
+              },
               "processedFiles": {
                 "type": "integer",
                 "description": "Number of files processed so far",
@@ -293,13 +316,72 @@
               },
               "percent": {
                 "type": "integer",
-                "description": "Percentage of processing completed (0-100)",
+                "description": "Overall percentage of processing completed (0-100). This is the field used by the frontend for main progress display.",
                 "minimum": 0,
                 "maximum": 100,
                 "example": 50
+              },
+              "fileProgress": {
+                "type": "integer",
+                "description": "Percentage of the current file's processing completed (0-100)",
+                "minimum": 0,
+                "maximum": 100,
+                "example": 75
+              },
+              "overallProgress": {
+                "type": "integer",
+                "description": "Percentage of processing completed across all files (0-100). Equivalent to 'percent'.",
+                "minimum": 0,
+                "maximum": 100,
+                "example": 50
+              },
+              "embeddingProgress": {
+                "type": "integer",
+                "description": "Percentage of embedding process completed across all chunks (0-100)",
+                "minimum": 0,
+                "maximum": 100,
+                "example": 60
+              },
+              "currentChunk": {
+                "type": "integer",
+                "description": "Current chunk being processed in the current file",
+                "example": 3
+              },
+              "totalChunks": {
+                "type": "integer",
+                "description": "Total number of chunks in the current file",
+                "example": 5
+              },
+              "processedChunks": {
+                "type": "integer",
+                "description": "Total number of chunks processed so far across all files",
+                "example": 10
+              },
+              "chunkSize": {
+                "type": "integer",
+                "description": "Size of the current chunk in characters",
+                "example": 1000
+              },
+              "status": {
+                "type": "string",
+                "description": "Current status of the processing operation",
+                "enum": [
+                  "analyzing",
+                  "processing",
+                  "embedding",
+                  "file_complete",
+                  "complete",
+                  "error"
+                ],
+                "example": "embedding"
+              },
+              "message": {
+                "type": "string",
+                "description": "Human-readable message describing the current processing status",
+                "example": "Embedding chunk 3/5 of file 1/2: document.pdf"
               }
             },
-            "required": ["uploadId", "processingId", "percent"]
+            "required": ["uploadId", "processedFiles", "totalFiles", "percent"]
           }
         }
       }
@@ -334,6 +416,11 @@
                 "description": "Total number of files attempted",
                 "example": 1
               },
+              "processedChunks": {
+                "type": "integer",
+                "description": "Total number of chunks processed",
+                "example": 15
+              },
               "totalChunks": {
                 "type": "integer",
                 "description": "Total number of text chunks created",
@@ -343,6 +430,24 @@
                 "type": "integer",
                 "description": "Total number of characters processed",
                 "example": 25000
+              },
+              "overallProgress": {
+                "type": "integer",
+                "description": "Final processing progress percentage (should be 100)",
+                "minimum": 0,
+                "maximum": 100,
+                "example": 100
+              },
+              "status": {
+                "type": "string",
+                "description": "Final status of the processing operation",
+                "enum": ["complete", "partial_complete", "error"],
+                "example": "complete"
+              },
+              "message": {
+                "type": "string",
+                "description": "Human-readable message describing the completion status",
+                "example": "Processing completed. Processed 1/1 files with 15 chunks and 25000 characters."
               },
               "results": {
                 "type": "array",
@@ -414,10 +519,36 @@
                 "description": "Name of the file that failed to process (if applicable)",
                 "example": "document.pdf"
               },
+              "fileIndex": {
+                "type": ["integer", "null"],
+                "description": "Index of the file that failed in the processing queue (0-based)",
+                "example": 0
+              },
+              "processedFiles": {
+                "type": ["integer", "null"],
+                "description": "Number of files processed before the error occurred",
+                "example": 0
+              },
+              "totalFiles": {
+                "type": ["integer", "null"],
+                "description": "Total number of files in the processing job",
+                "example": 1
+              },
               "error": {
                 "type": "string",
                 "description": "Error message",
                 "example": "Failed to extract text from PDF"
+              },
+              "status": {
+                "type": "string",
+                "description": "Status indicating the error type",
+                "enum": ["error", "partial_error"],
+                "example": "error"
+              },
+              "message": {
+                "type": "string",
+                "description": "Human-readable message describing the error",
+                "example": "Error processing file 1/1: document.pdf"
               }
             },
             "required": ["uploadId", "processingId", "error"]
