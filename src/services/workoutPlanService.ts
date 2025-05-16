@@ -689,27 +689,44 @@ export async function generateWorkoutPlan(
     });
 
     // Parse the response as JSON
-    let parsedPlan: WorkoutPlan | null = null; // Initialize as null
-    let parsingError: Error | null = null; // Track parsing error
+    let parsedPlan: WorkoutPlan | null = null; 
+    let parsingError: Error | null = null; 
+
     try {
-      // Extract JSON from the response
-      parsedPlan = extractJsonFromText(completeResponseText);
+      // Attempt to extract and parse JSON from the LLM's response
+      parsedPlan = extractJsonFromText(completeResponseText); // extractJsonFromText has its own internal try/catch for JSON.parse
 
       if (!parsedPlan) {
+        // This means extractJsonFromText returned null (e.g., couldn't find ```json ... ``` or initial parsing failed)
         parsingError = new Error(
-          "Failed to extract valid JSON from the response text.",
+          "Failed to extract valid JSON from the LLM response (extractJsonFromText returned null)."
         );
-        // Do not throw immediately, continue to validation/fallback
+        console.error(parsingError.message);
+        // Log the full response if extractJsonFromText itself couldn't make sense of it
+        console.error("--- BEGIN RAW LLM RESPONSE THAT extractJsonFromText COULD NOT PARSE ---");
+        console.error(completeResponseText);
+        console.error("--- END RAW LLM RESPONSE THAT extractJsonFromText COULD NOT PARSE ---");
       } else {
-        console.log("Successfully parsed JSON from LLM response.");
-        // Optional: Log parsed data structure or key elements for verification
-        console.log("Parsed Plan Name:", parsedPlan.program_name);
+        console.log("Successfully parsed JSON from LLM response via extractJsonFromText.");
+        if (parsedPlan.program_name) {
+           console.log("Parsed Plan Name:", parsedPlan.program_name);
+        } else {
+           console.log("Parsed JSON, but program_name field is missing from the parsed object.");
+        }
       }
-    } catch (error) {
-      console.error("Error during JSON extraction/parsing:", error);
-      // Log the raw response again if parsing failed, might help debugging why
-      console.error("Raw response that failed parsing:", completeResponseText);
-      parsingError = error instanceof Error ? error : new Error(String(error)); // Store the error
+    } catch (unexpectedErrorDuringExtraction) {
+      // This catch is for any unexpected errors thrown by extractJsonFromText itself,
+      // though it's designed to return null rather than throw for parsing issues.
+      // Or if other code within this try block failed.
+      console.error("Unexpected error during or immediately after JSON extraction attempt:", unexpectedErrorDuringExtraction);
+      parsingError = unexpectedErrorDuringExtraction instanceof Error 
+        ? unexpectedErrorDuringExtraction 
+        : new Error(String(unexpectedErrorDuringExtraction));
+      parsedPlan = null; // Ensure parsedPlan is null on any error
+      // Log the full response if an unexpected error occurred here
+      console.error("--- BEGIN RAW LLM RESPONSE THAT CAUSED UNEXPECTED EXTRACTION ERROR ---");
+      console.error(completeResponseText);
+      console.error("--- END RAW LLM RESPONSE THAT CAUSED UNEXPECTED EXTRACTION ERROR ---");
     }
 
     // Validate the plan against the schema or use a fallback if parsing failed
