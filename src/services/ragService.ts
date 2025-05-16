@@ -88,7 +88,8 @@ export async function addDocumentToVectorStore(
     // Emit progress if embedding info is provided
     if (embeddingInfo) {
       const {
-        uploadId,
+        uploadId,         // This is the specific uploadId for this session
+        processingId,     // This is the processingId for the broader processing task
         fileId,
         fileIndex,
         totalFiles,
@@ -98,9 +99,11 @@ export async function addDocumentToVectorStore(
       } = embeddingInfo;
       const fileProgress = Math.round((currentChunk / totalChunks) * 100);
 
-      // Import at the top of the file
-      // import { emitProcessingProgress } from "./socketService";
-      emitProcessingProgress(uploadId, {
+      // The first `uploadId` argument to emitProcessingProgress is for room targeting.
+      // The `uploadId` and `processingId` inside the event payload object are for the client to identify the event.
+      emitProcessingProgress(uploadId, { // Target room using uploadId
+        uploadId: uploadId, // Include uploadId in the payload
+        processingId: processingId, // Include processingId in the payload
         fileId,
         currentFile,
         fileIndex,

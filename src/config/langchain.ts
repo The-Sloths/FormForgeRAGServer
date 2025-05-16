@@ -1,6 +1,6 @@
-import { OpenAIEmbeddings } from "@langchain/openai";
+import { OpenAIEmbeddings, ChatOpenAI } from "@langchain/openai"; // Import ChatOpenAI
 import { SupabaseVectorStore } from "@langchain/community/vectorstores/supabase";
-import { OpenAI } from "@langchain/openai";
+// Remove OpenAI import if only ChatOpenAI is used for this model instance
 import supabase from "./supabase";
 import dotenv from "dotenv";
 
@@ -23,10 +23,12 @@ const vectorStore = new SupabaseVectorStore(embeddings, {
   tableName: "documents",
 });
 
-// Initialize OpenAI model
-const model = new OpenAI({
-  temperature: 2,
+// Initialize ChatOpenAI model
+const model = new ChatOpenAI({
+  temperature: 0.2,
   openAIApiKey: process.env.OPENAI_API_KEY,
+  maxTokens: 3000, // Increased max tokens for longer JSON output
+  modelName: "gpt-4o-mini", // Specify the chat model name
 });
 
 export { embeddings, vectorStore, model };

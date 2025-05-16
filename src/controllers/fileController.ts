@@ -282,6 +282,7 @@ async function processFilesInBackground(
         // Emit progress update for file start
         const overallProgress = Math.round((processedFiles / totalFiles) * 100);
         emitProcessingProgress(uploadId, {
+          uploadId: uploadId, // Ensure uploadId is in the payload
           processingId,
           currentFile: file.originalName,
           fileId: file.id,
@@ -337,6 +338,7 @@ async function processFilesInBackground(
             : 100;
 
         emitProcessingProgress(uploadId, {
+          uploadId: uploadId, // Ensure uploadId is in the payload
           processingId,
           currentFile: null, // Clear current file as processing for this one is done
           fileId: null,
@@ -381,6 +383,7 @@ async function processFilesInBackground(
 
     // Emit completion event
     emitProcessingComplete(uploadId, {
+      uploadId: uploadId, // Ensure uploadId is in the payload
       processingId,
       processedFiles,
       totalFiles,

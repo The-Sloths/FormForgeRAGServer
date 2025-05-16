@@ -4,20 +4,39 @@ import fs from "fs/promises";
 import { createStuffDocumentsChain } from "langchain/chains/combine_documents";
 import { createRetrievalChain } from "langchain/chains/retrieval";
 import path from "path";
-import { v4 as uuidv4 } from "uuid";
 import { model, vectorStore } from "../config/langchain";
-import supabase from "../config/supabase";
+import supabase from "../config/supabase"; // Import supabase client
+import { saveWorkoutPlan } from "./supabaseService"; // Import save function
 import {
   WorkoutPlan,
   WorkoutPlanGenerationStatus,
   WorkoutPlanInput,
 } from "../types/workoutPlanTypes";
-import { getIO } from "./socketService";
+// Correctly import socket emission functions
+import {
+  emitWorkoutPlanProgress,
+  emitWorkoutPlanComplete,
+  emitWorkoutPlanError,
+  getIO,
+} from "./socketService";
 import { StringOutputParser } from "@langchain/core/output_parsers";
 import Ajv from "ajv";
+import addFormats from "ajv-formats";
 
 // In-memory storage for tracking workout plan generation progress
+// This map is still useful for getWorkoutPlanStatus if a client polls before completion
 const workoutPlanProgress = new Map<string, WorkoutPlanGenerationStatus>();
+
+/**
+ * Get the current status of a workout plan generation
+ * @param planId The workout plan ID
+ * @returns The current generation status
+ */
+export function getWorkoutPlanStatus(
+  planId: string,
+): WorkoutPlanGenerationStatus | undefined {
+  return workoutPlanProgress.get(planId);
+}
 
 /**
  * Get the workout plan schema from file
@@ -47,67 +66,33 @@ async function getTrainingPromptTemplate(): Promise<string> {
       __dirname,
       "../prompts/training-generation.md",
     );
-    const promptContent = await fs.readFile(promptPath, "utf8");
+    // This reads the markdown file. The file should contain general instructions
+    // and the specific placeholder "PLACEHOLDER_FOR_JSON_SCHEMA".
+    let promptContent = await fs.readFile(promptPath, "utf8");
 
-    // Get the workout plan schema
     const schema = await getWorkoutPlanSchema();
+    const rawSchemaString = JSON.stringify(schema, null, 2);
 
-    // Convert schema to string and escape all curly braces to prevent template parsing errors
-    const schemaString = JSON.stringify(schema, null, 2)
-      .replace(/\{/g, "{{") // Escape opening curly braces
-      .replace(/\}/g, "}}"); // Escape closing curly braces
+    // Escape curly braces within the schemaString for LangChain template compatibility
+    const escapedSchemaString = rawSchemaString.replace(/{/g, "{{").replace(/}/g, "}}");
 
-    // Replace the placeholder with the actual schema
-    const completePrompt = promptContent.replace(
-      "Remember: Your output MUST be a valid JSON object conforming to the workout plan schema. Include all required fields and ensure internal consistency throughout the program.",
-      `Remember: Your output MUST be a valid JSON object conforming to the following schema:\n\n\`\`\`json\n${schemaString}\n\`\`\`\n\nInclude all required fields and ensure internal consistency throughout the program.`,
-    );
+    // This is the specific string that should be present in your .md file.
+    const placeholderToReplace = "PLACEHOLDER_FOR_JSON_SCHEMA";
 
-    return completePrompt;
+    // This is the text that will replace the placeholder. It includes instructions
+    // about the JSON output and the escaped schema itself.
+    const schemaInjectionBlock =
+      `Your output MUST be a valid JSON object conforming to the following schema. Do not include any explanatory text or markdown formatting outside of the JSON object itself. The entire response should be only the JSON content.\n\nJSON Schema:\n\`\`\`json\n${escapedSchemaString}\n\`\`\`\n\nEnsure all required fields are present and the program is consistent.`;
+
+    // Replace the placeholder in the prompt content.
+    promptContent = promptContent.replace(placeholderToReplace, schemaInjectionBlock);
+
+    // promptContent now contains the full system message:
+    // original instructions from .md (before placeholder) + schemaInjectionBlock + original instructions from .md (after placeholder, if any)
+    return promptContent;
   } catch (error) {
     console.error("Error loading training prompt template:", error);
     throw new Error("Failed to load training prompt template");
-  }
-}
-
-/**
- * Emit workout plan generation progress via WebSocket
- * @param planId The workout plan ID
- * @param data Progress data
- */
-export function emitWorkoutPlanProgress(
-  planId: string,
-  data: Partial<WorkoutPlanGenerationStatus>,
-): void {
-  // Get current progress or initialize a new one
-  const currentProgress = workoutPlanProgress.get(planId) || {
-    planId,
-    status: "queued",
-    progress: 0,
-    step: "Initializing",
-  };
-
-  // Update progress with new data
-  const updatedProgress = {
-    ...currentProgress,
-    ...data,
-  };
-
-  // Store updated progress
-  workoutPlanProgress.set(
-    planId,
-    updatedProgress as WorkoutPlanGenerationStatus,
-  );
-
-  // Emit via WebSocket
-  const io = getIO();
-  io.to(`workoutPlan:${planId}`).emit("workoutPlanProgress", updatedProgress);
-
-  // If completed or failed, emit the appropriate event
-  if (data.status === "completed") {
-    io.to(`workoutPlan:${planId}`).emit("workoutPlanComplete", updatedProgress);
-  } else if (data.status === "failed") {
-    io.to(`workoutPlan:${planId}`).emit("workoutPlanError", updatedProgress);
   }
 }
 
@@ -129,15 +114,17 @@ async function getDocumentsFromFileIds(
     // we'll perform a two-step process:
 
     // 1. First, get semantic search results
-    const documents = await vectorStore.similaritySearch(query, topK * 2);
+    // Retrieve more documents initially to increase the chance of finding relevant ones within the specified fileIds
+    const documents = await vectorStore.similaritySearch(query, topK * 5); // Retrieve more documents
 
     // 2. Then filter by fileIds in the metadata
     const filteredDocuments = documents.filter((doc) => {
       const fileId = doc.metadata?.fileId;
+      // Ensure fileId exists and is in the list of fileIds
       return fileId && fileIds.includes(fileId);
     });
 
-    // Limit to topK documents
+    // Limit to topK documents after filtering
     return filteredDocuments.slice(0, topK);
   } catch (error) {
     console.error("Error retrieving documents by file IDs:", error);
@@ -154,10 +141,16 @@ async function getDocumentsDirectlyFromSupabase(
 ): Promise<Document[]> {
   try {
     // Query the documents table directly with a fileId filter
+    // Note: This approach doesn't leverage semantic search ranking directly,
+    // but ensures documents from the correct files are retrieved.
     const { data, error } = await supabase
       .from("documents")
-      .select("content, metadata, embedding")
-      .filter("metadata->fileId", "in", `(${fileIds.join(",")})`);
+      .select("content, metadata") // No need to select embedding here
+      .filter(
+        "metadata->>fileId",
+        "in",
+        `(${fileIds.map((id) => `'${id}'`).join(",")})`,
+      ); // Use ->> for text comparison, quote IDs
 
     if (error) throw error;
 
@@ -185,8 +178,10 @@ async function validateWorkoutPlan(plan: any): Promise<boolean> {
     // Get the schema
     const schema = await getWorkoutPlanSchema();
 
-    // Create validator
+    // Create validator instance and add format support
     const ajv = new Ajv();
+    addFormats(ajv); // Add support for standard formats like 'url'
+
     const validate = ajv.compile(schema);
 
     // Validate the plan
@@ -194,13 +189,15 @@ async function validateWorkoutPlan(plan: any): Promise<boolean> {
 
     if (!valid && validate.errors) {
       console.error("Workout plan validation errors:", validate.errors);
+      // Store AJV errors for potential detailed reporting
+      // This might require extending WorkoutPlanGenerationStatus or emitting a separate event
     }
 
     return !!valid;
   } catch (error) {
     console.error("Error validating workout plan against schema:", error);
 
-    // Fallback to basic validation if schema validation fails
+    // Fallback to basic validation if schema validation fails unexpectedly
     return basicValidateWorkoutPlan(plan);
   }
 }
@@ -222,21 +219,43 @@ function basicValidateWorkoutPlan(plan: any): boolean {
   ];
 
   for (const field of requiredFields) {
-    if (!plan[field]) {
-      console.error(`Missing required field: ${field}`);
+    if (plan[field] === undefined || plan[field] === null) {
+      // Check for undefined or null
+      console.error(
+        `Basic validation failed: Missing required field: ${field}`,
+      );
       return false;
     }
   }
 
   // Check workout_plan required fields
-  if (!plan.workout_plan.structure_type || !plan.workout_plan.schedule) {
-    console.error("Missing required workout_plan fields");
+  if (
+    !plan.workout_plan ||
+    !plan.workout_plan.structure_type ||
+    !plan.workout_plan.schedule
+  ) {
+    console.error(
+      "Basic validation failed: Missing required workout_plan fields",
+    );
+    return false;
+  }
+
+  // Check schedule has at least 5 days
+  if (
+    !Array.isArray(plan.workout_plan.schedule) ||
+    plan.workout_plan.schedule.length < 5
+  ) {
+    console.error(
+      `Basic validation failed: Workout schedule must contain at least 5 days, but found ${plan.workout_plan.schedule.length}`,
+    );
     return false;
   }
 
   // Check exercises array
   if (!Array.isArray(plan.exercises) || plan.exercises.length === 0) {
-    console.error("Exercises must be a non-empty array");
+    console.error(
+      "Basic validation failed: Exercises must be a non-empty array",
+    );
     return false;
   }
 
@@ -245,7 +264,7 @@ function basicValidateWorkoutPlan(plan: any): boolean {
 
 /**
  * Generate a minimal valid workout plan based on the schema requirements
- * To be used as a fallback when parsing fails
+ * To be used as a fallback when parsing fails or validation fails critical checks
  * @returns A minimal valid workout plan
  */
 async function generateMinimalValidPlan(): Promise<WorkoutPlan> {
@@ -278,33 +297,56 @@ async function generateMinimalValidPlan(): Promise<WorkoutPlan> {
           "Support your body on forearms and toes, maintaining a straight line from head to heels.",
         target_muscles: ["Core", "Shoulders", "Back"],
       },
+      {
+        // Adding more exercises to meet schema requirements implicitly
+        exercise_name: "Pull-up (Assisted)",
+        exercise_type: "Basics",
+        description:
+          "Hanging from a bar, pull yourself up until your chin is over the bar, using a resistance band for assistance.",
+        target_muscles: ["Back", "Biceps", "Forearms"],
+        progressions: [
+          {
+            level_name: "Resistance Band Assisted",
+            description: "Use a resistance band for help.",
+          },
+        ],
+      },
+      {
+        // Adding more exercises
+        exercise_name: "Lunge",
+        exercise_type: "Basics",
+        description:
+          "Step forward with one leg, lowering your hips until both knees are bent at a roughly 90-degree angle.",
+        target_muscles: ["Quadriceps", "Glutes", "Hamstrings"],
+      },
     ],
     workout_plan: {
       structure_type: "Weekly Split",
       schedule: [
         {
           day: "Day 1",
-          focus: "Full Body",
+          focus: "Full Body Strength",
           routines: [
             {
-              routine_name: "Basic Strength Circuit",
+              routine_name: "Strength Circuit A",
               routine_type: "Circuit",
+              duration: "3 rounds",
               exercises_in_routine: [
                 {
                   exercise_name: "Push-up",
-                  sets: 3,
-                  reps: 10,
+                  sets: "Max",
+                  reps: null,
                   rest_after_exercise: "60 seconds",
                 },
                 {
                   exercise_name: "Bodyweight Squat",
-                  sets: 3,
-                  reps: 15,
+                  sets: "Max",
+                  reps: null,
                   rest_after_exercise: "60 seconds",
                 },
                 {
                   exercise_name: "Plank",
-                  sets: 3,
+                  sets: "Max",
                   duration: "30 seconds",
                   rest_after_exercise: "60 seconds",
                 },
@@ -315,37 +357,33 @@ async function generateMinimalValidPlan(): Promise<WorkoutPlan> {
         {
           day: "Day 2",
           focus: "Rest",
-          routines: [
-            {
-              routine_name: "Active Recovery",
-              routine_type: "Other",
-              exercises_in_routine: [],
-            },
-          ],
+          routines: [], // Keep routines array, but it can be empty
         },
         {
           day: "Day 3",
-          focus: "Full Body",
+          focus: "Full Body Strength",
           routines: [
             {
-              routine_name: "Basic Strength Circuit",
+              routine_name: "Strength Circuit B",
               routine_type: "Circuit",
+              duration: "3 rounds",
               exercises_in_routine: [
                 {
-                  exercise_name: "Push-up",
-                  sets: 3,
-                  reps: 10,
+                  exercise_name: "Pull-up (Assisted)",
+                  progression_level: "Resistance Band Assisted",
+                  sets: "Max",
+                  reps: null,
                   rest_after_exercise: "60 seconds",
                 },
                 {
-                  exercise_name: "Bodyweight Squat",
-                  sets: 3,
-                  reps: 15,
+                  exercise_name: "Lunge",
+                  sets: "Max",
+                  reps: "10 per leg",
                   rest_after_exercise: "60 seconds",
                 },
                 {
                   exercise_name: "Plank",
-                  sets: 3,
+                  sets: "Max",
                   duration: "30 seconds",
                   rest_after_exercise: "60 seconds",
                 },
@@ -355,10 +393,10 @@ async function generateMinimalValidPlan(): Promise<WorkoutPlan> {
         },
         {
           day: "Day 4",
-          focus: "Rest",
+          focus: "Active Recovery",
           routines: [
             {
-              routine_name: "Active Recovery",
+              routine_name: "Light Mobility",
               routine_type: "Other",
               exercises_in_routine: [],
             },
@@ -366,27 +404,28 @@ async function generateMinimalValidPlan(): Promise<WorkoutPlan> {
         },
         {
           day: "Day 5",
-          focus: "Full Body",
+          focus: "Full Body Strength",
           routines: [
             {
-              routine_name: "Basic Strength Circuit",
+              routine_name: "Strength Circuit A", // Repeat circuit A
               routine_type: "Circuit",
+              duration: "3 rounds",
               exercises_in_routine: [
                 {
                   exercise_name: "Push-up",
-                  sets: 3,
-                  reps: 10,
+                  sets: "Max",
+                  reps: null,
                   rest_after_exercise: "60 seconds",
                 },
                 {
                   exercise_name: "Bodyweight Squat",
-                  sets: 3,
-                  reps: 15,
+                  sets: "Max",
+                  reps: null,
                   rest_after_exercise: "60 seconds",
                 },
                 {
                   exercise_name: "Plank",
-                  sets: 3,
+                  sets: "Max",
                   duration: "30 seconds",
                   rest_after_exercise: "60 seconds",
                 },
@@ -394,7 +433,28 @@ async function generateMinimalValidPlan(): Promise<WorkoutPlan> {
             },
           ],
         },
+        {
+          day: "Day 6",
+          focus: "Rest",
+          routines: [],
+        },
+        {
+          day: "Day 7",
+          focus: "Rest",
+          routines: [],
+        },
       ],
+    },
+    // Include empty or minimal optional sections to match schema if needed
+    nutrition_advice: {
+      overview:
+        "Focus on a balanced diet with sufficient protein for muscle recovery.",
+    },
+    hydration_advice: {
+      overview:
+        "Stay well-hydrated throughout the day, especially around workouts.",
+      recommended_intake:
+        "Aim for 2-3 liters of water daily, adjusting based on activity level.",
     },
   };
 }
@@ -408,36 +468,53 @@ function extractJsonFromText(text: string): any | null {
   try {
     // Strategy 1: Try to extract JSON using markdown code block regex
     const jsonMatch = text.match(/```(?:json)?([\s\S]*?)```/);
-    if (jsonMatch) {
+    if (jsonMatch && jsonMatch[1]) {
+      // Ensure match and capture group exist
       try {
+        // Attempt parsing the content inside the code block
         return JSON.parse(jsonMatch[1].trim());
       } catch (e) {
-        // If direct parsing fails, try cleaning the JSON
+        console.error("Error parsing JSON inside code block:", e);
+        // Fallback to cleaning and trying again if initial parsing fails
         const cleanedJson = jsonMatch[1]
           .trim()
-          .replace(/\n/g, " ")
-          .replace(/,\s*}/g, "}") // Remove trailing commas
-          .replace(/,\s*]/g, "]") // Remove trailing commas in arrays
-          .replace(/(['"])?([a-zA-Z0-9_]+)(['"])?:/g, '"$2":'); // Ensure property names are quoted
-
-        return JSON.parse(cleanedJson);
+          .replace(/,\s*}/g, "}") // Remove trailing commas before closing brace
+          .replace(/,\s*]/g, "]") // Remove trailing commas before closing bracket
+          .replace(/(['"])?([a-zA-Z0-9_]+)(['"])?:\s*/g, '"$2": '); // Ensure keys are double-quoted and followed by colon and space
+        try {
+          return JSON.parse(cleanedJson);
+        } catch (e2) {
+          console.error("Error parsing cleaned JSON inside code block:", e2);
+          return null; // Cleaning also failed
+        }
       }
     }
 
-    // Strategy 2: Try to extract JSON using a simple pattern (any content between curly braces)
-    const simpleJsonMatch = text.match(/({[\s\S]*})/);
-    if (simpleJsonMatch) {
-      try {
-        return JSON.parse(simpleJsonMatch[1].trim());
-      } catch (e) {
-        // If that fails too, we'll return null and handle it in the caller
-      }
+    // Strategy 2: Try parsing the entire text if no code block is found
+    try {
+      // Attempt parsing the entire text directly
+      return JSON.parse(text.trim());
+    } catch (e) {
+      console.error("Error parsing entire text as JSON:", e);
+      return null; // Parsing entire text failed
     }
 
-    // Strategy 3: Try parsing the entire text as JSON
-    return JSON.parse(text);
+    // Strategy 3: Fallback (less reliable) - Try to extract JSON using a simple pattern (any content between the first '{' and last '}')
+    // This is commented out because it's highly prone to errors with malformed JSON or extra text
+    //  const simpleJsonMatch = text.match(/({[\s\S]*})/);
+    //  if (simpleJsonMatch && simpleJsonMatch[1]) {
+    //    try {
+    //      return JSON.parse(simpleJsonMatch[1].trim());
+    //    } catch (e) {
+    //       console.error("Error parsing simple JSON match:", e);
+    //      return null;
+    //    }
+    //  }
+
+    // If none of the strategies worked
+    return null;
   } catch (e) {
-    console.error("Failed to extract JSON from text:", e);
+    console.error("Unexpected error in extractJsonFromText:", e);
     return null;
   }
 }
@@ -448,214 +525,303 @@ function extractJsonFromText(text: string): any | null {
  * @param prompt The prompt template
  * @param context The retrieved documents context
  * @param query The user query
- * @returns Complete JSON response
+ * @returns Complete JSON response string (may still require parsing)
  */
 async function getCompleteJsonResponse(
-  prompt: ChatPromptTemplate,
+  prompt: ChatPromptTemplate, // This will now be a ChatPromptTemplate created fromMessages
   context: string,
   query: string,
 ): Promise<string> {
   // Create a direct chain with the model and a string output parser
+  // The 'model' is now ChatOpenAI, and 'prompt' is ChatPromptTemplate.fromMessages
   const chain = prompt.pipe(model).pipe(new StringOutputParser());
 
   // Initialize variables for streaming
   let completeResponse = "";
-  let jsonComplete = false;
-  let maxAttempts = 3;
-  let attempts = 0;
+  // We will collect the entire response before attempting to parse/validate
+  // to avoid issues with incomplete JSON chunks during streaming.
 
-  // Try multiple times to get a complete JSON
-  while (!jsonComplete && attempts < maxAttempts) {
-    attempts++;
-
-    // Reset response for each attempt
-    completeResponse = "";
-
-    // Stream the response
+  console.log("Starting LLM stream for workout plan generation...");
+  // Stream the response
+  try {
     const stream = await chain.stream({
       context,
       question: query,
     });
 
     // Collect all chunks
+    // Stream the response
     for await (const chunk of stream) {
       completeResponse += chunk;
-
-      // Attempt to validate if we have complete JSON
-      if (completeResponse.includes("}")) {
-        try {
-          // Try to extract JSON
-          const jsonData = extractJsonFromText(completeResponse);
-          if (jsonData) {
-            jsonComplete = true;
-            break;
-          }
-        } catch (e) {
-          // JSON is not complete yet, continue streaming
-        }
-      }
+      // Optional: Emit partial progress based on chunks received if needed,
+      // but full validation/parsing only happens after stream ends.
     }
-
-    // If we have a complete JSON, break out
-    if (jsonComplete) {
-      break;
-    }
-
-    console.warn(
-      `Attempt ${attempts}: Failed to get complete JSON, retrying...`,
-    );
+    console.log("LLM stream finished.");
+  } catch (error) {
+    console.error("Error during LLM streaming:", error);
+    // Rethrow or handle error. Ensure the error message is informative.
+    throw new Error(`Error during LLM response streaming: ${error instanceof Error ? error.message : String(error)}`);
   }
 
-  return completeResponse;
+  return completeResponse; // Return the complete response string
 }
 
 /**
  * Generate a workout plan based on user input and file sources
+ * This function now runs as a background task and emits progress/completion via WebSocket.
+ * @param planId The unique ID for this generation task
  * @param input The workout plan input parameters
- * @returns Generated workout plan
  */
 export async function generateWorkoutPlan(
+  planId: string, // Accept planId from controller
   input: WorkoutPlanInput,
-): Promise<{ planId: string; plan: WorkoutPlan }> {
-  // Generate a unique plan ID
-  const planId = uuidv4();
-
+): Promise<void> {
+  // Return void as it doesn't return the plan directly anymore
   try {
-    // Initialize progress tracking
+    // Update progress (status is already 'accepted' in controller)
     emitWorkoutPlanProgress(planId, {
-      status: "queued",
-      progress: 0,
-      step: "Initializing workout plan generation",
+      planId: planId,
+      status: "generating", // Change status to generating as soon as the background task starts
+      progress: 5, // Start progress slightly above 0
+      step: "Starting workout plan generation",
     });
 
     // Destructure input
     const { query, fileIds, options } = input;
 
-    // Validate input
-    if (!query || typeof query !== "string") {
-      throw new Error("Query is required and must be a string");
-    }
-
-    if (!fileIds || !Array.isArray(fileIds) || fileIds.length === 0) {
-      throw new Error("At least one fileId is required");
-    }
+    // Validation was done in the controller, but could add more robust validation here too.
+    // For now, assume input is valid based on controller's check.
 
     // Update progress
     emitWorkoutPlanProgress(planId, {
-      status: "generating",
-      progress: 10,
+      planId: planId,
+      progress: 15,
       step: "Retrieving relevant documents",
     });
 
     // Get documents filtered by fileIds
-    const documents = await getDocumentsFromFileIds(
+    let documents = await getDocumentsFromFileIds(
       fileIds,
       query,
       options?.topK || 8,
     );
 
+    // If no documents found via semantic search + filter, try direct Supabase retrieval
     if (documents.length === 0) {
-      throw new Error("No relevant documents found for the provided file IDs");
+      console.warn(
+        "No relevant documents found via semantic search + filter. Attempting direct retrieval from Supabase.",
+      );
+      documents = await getDocumentsDirectlyFromSupabase(fileIds);
+      if (documents.length > 0) {
+        console.log(
+          `Retrieved ${documents.length} documents directly from Supabase.`,
+        );
+        // Note: Direct retrieval doesn't guarantee relevance to the query,
+        // but ensures documents from the correct files are used.
+      } else {
+        console.error(
+          "No documents found even with direct Supabase retrieval.",
+        );
+      }
+    }
+
+    if (documents.length === 0) {
+      const errorMsg =
+        "No relevant documents found for the provided file IDs after retrieval attempts. Cannot generate plan.";
+      console.error(errorMsg);
+      emitWorkoutPlanError(planId, {
+        planId: planId,
+        error: errorMsg,
+        status: "failed",
+        step: "Failed to retrieve documents",
+        message: errorMsg,
+        progress: 0,
+      });
+      return; // Exit the function if no documents
     }
 
     // Update progress
     emitWorkoutPlanProgress(planId, {
+      planId: planId,
       progress: 30,
-      step: "Creating workout plan with retrieved knowledge",
+      step: "Preparing prompt for LLM",
     });
 
     // Get the training prompt template with schema included
-    const promptTemplate = await getTrainingPromptTemplate();
+    const systemMessageContent = await getTrainingPromptTemplate();
+    const humanMessageTemplate = "Context: {context}\n\nQuestion: {question}";
 
-    // Create a prompt template
-    const prompt = ChatPromptTemplate.fromTemplate(promptTemplate);
+    // Create a chat prompt template
+    const prompt = ChatPromptTemplate.fromMessages([
+      ["system", systemMessageContent],
+      ["human", humanMessageTemplate],
+    ]);
 
     // Update progress
     emitWorkoutPlanProgress(planId, {
-      progress: 50,
-      step: "Generating personalized workout plan",
+      planId: planId,
+      progress: 40,
+      step: "Generating personalized workout plan with AI",
     });
 
     // Extract the content from the documents to create context
     const context = documents.map((doc) => doc.pageContent).join("\n\n");
 
     // Get complete response using streaming to ensure we get all the JSON
-    const completeResponse = await getCompleteJsonResponse(
+    const completeResponseText = await getCompleteJsonResponse(
       prompt,
       context,
       query,
     );
 
-    console.log("Complete response received");
+    console.log("Complete LLM response received.");
+    // Log a snippet or indicators of the raw response for debugging
+    console.log(
+      `Raw response start: ${completeResponseText.substring(0, 200)}...`,
+    );
+    console.log(`Raw response length: ${completeResponseText.length}`);
 
     // Update progress
     emitWorkoutPlanProgress(planId, {
-      progress: 80,
-      step: "Validating workout plan",
+      planId: planId,
+      progress: 70, // Increased progress after getting response, before parsing/validation
+      step: "Parsing and validating workout plan response",
     });
 
     // Parse the response as JSON
-    let parsedPlan: WorkoutPlan;
+    let parsedPlan: WorkoutPlan | null = null; // Initialize as null
+    let parsingError: Error | null = null; // Track parsing error
     try {
       // Extract JSON from the response
-      const jsonData = extractJsonFromText(completeResponse);
+      parsedPlan = extractJsonFromText(completeResponseText);
 
-      if (!jsonData) {
-        throw new Error("Failed to extract valid JSON from the response");
+      if (!parsedPlan) {
+        parsingError = new Error(
+          "Failed to extract valid JSON from the response text.",
+        );
+        // Do not throw immediately, continue to validation/fallback
+      } else {
+        console.log("Successfully parsed JSON from LLM response.");
+        // Optional: Log parsed data structure or key elements for verification
+        console.log("Parsed Plan Name:", parsedPlan.program_name);
+      }
+    } catch (error) {
+      console.error("Error during JSON extraction/parsing:", error);
+      // Log the raw response again if parsing failed, might help debugging why
+      console.error("Raw response that failed parsing:", completeResponseText);
+      parsingError = error instanceof Error ? error : new Error(String(error)); // Store the error
+    }
+
+    // Validate the plan against the schema or use a fallback if parsing failed
+    let finalPlan: WorkoutPlan;
+    let validationError: Error | null = null; // Track validation error
+
+    if (parsedPlan) {
+      try {
+        const isValid = await validateWorkoutPlan(parsedPlan);
+        if (isValid) {
+          finalPlan = parsedPlan;
+          console.log("Generated workout plan validated successfully.");
+        } else {
+          console.warn(
+            "Generated plan failed schema validation. Using fallback plan.",
+          );
+          // Log validation errors if available from validateWorkoutPlan's internal logging
+          validationError = new Error("Schema validation failed."); // Generic error for emission
+          finalPlan = await generateMinimalValidPlan();
+        }
+      } catch (validationErr) {
+        console.error(
+          "Error during workout plan schema validation:",
+          validationErr,
+        );
+        validationError =
+          validationErr instanceof Error
+            ? validationErr
+            : new Error(String(validationErr)); // Store the error
+        console.warn("Validation process failed. Using fallback plan.");
+        finalPlan = await generateMinimalValidPlan();
+      }
+    } else {
+      console.warn(
+        "Parsed plan was null (JSON extraction failed). Using fallback plan.",
+      );
+      finalPlan = await generateMinimalValidPlan();
+    }
+
+    // After generating and validating (or falling back), save the final plan to the database
+    try {
+      // Pass the planId and the finalPlan object to saveWorkoutPlan
+      await saveWorkoutPlan({ planId: planId, plan: finalPlan });
+      console.log(`Workout plan with ID ${planId} saved to database.`);
+
+      // Determine the final error message to emit
+      let finalErrorMessage: string | undefined;
+      if (parsingError) {
+        finalErrorMessage = `Parsing failed: ${parsingError.message}`;
+      } else if (validationError) {
+        // Ensure validationError is an Error instance before accessing message
+        finalErrorMessage = `Validation failed: ${validationError instanceof Error ? validationError.message : "Unknown validation error"}`;
       }
 
-      parsedPlan = jsonData as WorkoutPlan;
-    } catch (error) {
-      console.error("Error parsing workout plan JSON:", error);
-      console.error("Raw response:", completeResponse);
+      // Determine the final message to emit
+      let finalMessage: string;
+      if (!parsingError && !validationError && finalPlan === parsedPlan) {
+        finalMessage = "Workout plan generated and validated successfully.";
+      } else if (finalPlan !== parsedPlan) {
+        finalMessage =
+          "Workout plan generation had issues (parsing or validation failed), using fallback plan.";
+      } else {
+        finalMessage = "Workout plan generation completed with errors."; // Should not happen if using fallback?
+      }
 
-      // Use a fallback plan that follows the schema
-      console.warn("Using fallback workout plan due to parsing failures");
-      parsedPlan = await generateMinimalValidPlan();
+      // Emit completion event via WebSocket, including the final plan and messages/errors
+      emitWorkoutPlanComplete(planId, {
+        planId: planId,
+        status: "completed",
+        progress: 100,
+        step: "Workout plan generation completed and saved",
+        result: finalPlan,
+        message: finalMessage,
+        error: finalErrorMessage,
+      });
+    } catch (dbError) {
+      console.error(
+        `Error saving workout plan ID ${planId} to database:`,
+        dbError,
+      );
+
+      // If saving fails, emit an error event via WebSocket
+      emitWorkoutPlanError(planId, {
+        planId: planId,
+        error:
+          dbError instanceof Error
+            ? dbError.message
+            : "Failed to save workout plan to database",
+        status: "failed",
+        step: "Failed to save workout plan",
+        message: "An error occurred while saving the workout plan.",
+        progress: 0,
+      });
     }
-
-    // Validate the plan against the schema
-    const isValid = await validateWorkoutPlan(parsedPlan);
-    if (!isValid) {
-      console.warn("Generated plan does not match schema, using fallback plan");
-      parsedPlan = await generateMinimalValidPlan();
-    }
-
-    // Update progress to completed
-    emitWorkoutPlanProgress(planId, {
-      status: "completed",
-      progress: 100,
-      step: "Workout plan generation completed",
-      result: parsedPlan,
-    });
-
-    return {
-      planId,
-      plan: parsedPlan,
-    };
   } catch (error) {
-    // Handle errors
-    console.error("Error generating workout plan:", error);
+    // This catch block handles errors that occur during the background task BEFORE the save attempt (e.g., document retrieval fails).
+    console.error(
+      `Unexpected error during workout plan generation process for ID ${planId}:`,
+      error,
+    );
 
-    // Update progress with error
-    emitWorkoutPlanProgress(planId, {
+    // Update progress with error via WebSocket
+    emitWorkoutPlanError(planId, {
+      planId: planId,
+      error:
+        error instanceof Error
+          ? error.message
+          : "An unexpected error occurred during workout plan generation.",
       status: "failed",
-      progress: 0,
-      step: "Error generating workout plan",
-      error: error instanceof Error ? error.message : "Unknown error",
+      progress: 0, // Reset progress on failure
+      step: "Error during generation process",
+      message: "Workout plan generation failed.",
     });
-
-    throw error;
   }
-}
-
-/**
- * Get the current status of a workout plan generation
- * @param planId The workout plan ID
- * @returns The current generation status
- */
-export function getWorkoutPlanStatus(
-  planId: string,
-): WorkoutPlanGenerationStatus | undefined {
-  return workoutPlanProgress.get(planId);
 }

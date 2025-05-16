@@ -1,27 +1,90 @@
-export interface WorkoutPlanInput {
-  query: string; // User's request (e.g., "Create a beginner calisthenics program for muscle gain")
-  fileIds: string[]; // IDs of specific files to use as knowledge sources
+// Document types
+export interface DocumentInput {
+  text: string;
+  metadata?: Record<string, any>;
+}
+
+// Query types
+export interface QueryInput {
+  query: string;
   options?: {
-    topK?: number; // Number of most relevant chunks to retrieve (default: 4)
-    includeNutrition?: boolean; // Whether to include nutrition advice
-    includeHydration?: boolean; // Whether to include hydration advice
-    fitnessLevel?: "beginner" | "intermediate" | "advanced"; // User's fitness level
-    specificGoals?: string[]; // Specific goals (e.g., ["muscle gain", "flexibility"])
-    excludedExercises?: string[]; // Exercises to exclude due to injuries or limitations
+    topK?: number;
+    similarity?: number;
   };
 }
 
+export interface QueryResponse {
+  answer: string;
+  sources?: Array<{
+    content: string;
+    metadata?: Record<string, any>;
+    similarity?: number;
+  }>;
+}
+
+// Error types
+export interface ErrorResponse {
+  error: string;
+  message: string;
+  details?: any;
+}
+
+// File upload response
+export interface FileUploadResponse {
+  filename: string;
+  chunks: number;
+  totalCharacters: number;
+  message: string;
+}
+
+// File upload options
+export interface FileUploadOptions {
+  splitByChunks?: boolean;
+  chunkSize?: number;
+  chunkOverlap?: number;
+  metadata?: Record<string, any>;
+}
+
+export interface FileDocument {
+  id: string;
+  filePath: string;
+  fileType: string;
+  originalName: string;
+  metadata?: Record<string, any>;
+  status?: "uploaded" | "processing" | "processed" | "error";
+  processed?: boolean;
+  error?: string;
+}
+
+// Workout Plan Schema Types
+
+// Options for workout plan generation
+export interface WorkoutPlanInputOptions {
+  topK?: number;
+  includeNutrition?: boolean;
+  includeHydration?: boolean;
+  fitnessLevel?: "beginner" | "intermediate" | "advanced";
+  specificGoals?: string[];
+  excludedExercises?: string[];
+}
+
+// Input for generating a workout plan
+export interface WorkoutPlanInput {
+  query: string;
+  fileIds: string[];
+  options?: WorkoutPlanInputOptions;
+}
+
+// Export the WorkoutPlanGenerationStatus interface
 export interface WorkoutPlanGenerationStatus {
   planId: string;
-  status: "queued" | "generating" | "completed" | "failed";
+  status: "queued" | "accepted" | "generating" | "completed" | "failed"; // Added 'accepted'
   progress: number; // 0-100
   step: string;
   message?: string;
   error?: string;
-  result?: WorkoutPlan;
+  result?: WorkoutPlan; // Make result optional as it's only present on completion
 }
-
-// Workout Plan Schema Types
 
 // Exercise Types
 interface ExerciseProgression {
