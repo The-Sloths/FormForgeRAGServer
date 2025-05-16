@@ -2,6 +2,7 @@ import express from "express";
 import {
   createWorkoutPlan,
   getWorkoutPlanById,
+  listWorkoutPlans, // Import the new controller function
 } from "../controllers/workoutPlanController";
 // Correct the import to use the exported type name WorkoutPlanGenerationStatus
 import { WorkoutPlanGenerationStatus } from "../types/workoutPlanTypes";
@@ -191,32 +192,11 @@ const router = express.Router();
                                   notes: { type: "string", nullable: true }
                                  required: ["exercise_name"]
                                required: ["routine_name", "routine_type", "exercises_in_routine"]
-                           required: ["day", "focus", "routines"]
-                       required: ["structure_type", "schedule"]
-                   nutrition_advice:
-                      type: "object" # Define nutrition_advice properties if needed for documentation clarity
-                      properties:
-                         overview: { type: "string" }
-                         key_principles: { type: "array", items: { type: "object", properties: { principle_name: { type: "string" }, description: { type: "string" } }, required: ["principle_name", "description"] }, nullable: true }
-                         macronutrients_guidelines: { type: "object", properties: { calories: { type: "string" }, carbohydrates: { type: "string" }, protein: { type: "string" }, fats: { type: "string" } }, nullable: true }
-                         example_meal_plans: { type: "array", items: { type: "object", properties: { plan_name: { type: "string" }, meals: { type: "array", items: { type: "object", properties: { time: { type: "string" }, meal_type: { type: "string" }, consumption: { type: "string" } }, required: ["meal_type", "consumption"] } } }, required: ["plan_name", "meals"] }, nullable: true }
-                      nullable: true
-                   hydration_advice:
-                       type: "object" # Define hydration_advice properties if needed
-                       properties:
-                          overview: { type: "string" }
-                          recommended_intake: { type: "string" }
-                       nullable: true
-                 required: # Required properties for the plan object itself
-                   - program_name
-                   - program_goal
-                   - program_description
-                   - required_gear
-                   - exercises
-                   - workout_plan
+                                     required: ["day", "focus", "routines"]
+                                 required: ["structure_type", "schedule"] # Required for the workout_plan object
 
-     ErrorResponse:
-       type: object
+                   ErrorResponse:
+                     type: object
        properties:
          error:
            type: string
@@ -227,6 +207,158 @@ const router = express.Router();
        example:
          error: "Bad Request"
          message: "At least one fileId is required"
+
+     # Add schemas derived from TypeScript types
+     WorkoutPlan: # Schema matching the WorkoutPlan TypeScript interface
+       type: object
+       properties:
+         program_name: { type: "string" }
+         program_goal: { type: "string" }
+         program_description: { type: "string" }
+         required_gear: { type: "array", items: { type: "string" } }
+         exercises:
+           type: "array"
+           items:
+             $ref: '#/components/schemas/Exercise' # Reference Exercise schema
+         workout_plan:
+           type: "object"
+           properties:
+             structure_type: { type: "string", enum: ["Weekly Split", "Circuit Based", "AMRAP", "EMOM", "Tabata", "Greasing the Groove", "Other"] }
+             schedule:
+               type: "array"
+               items:
+                 $ref: '#/components/schemas/WorkoutDay' # Reference WorkoutDay schema
+           required: ["structure_type", "schedule"]
+         nutrition_advice:
+            $ref: '#/components/schemas/NutritionAdvice' # Reference NutritionAdvice schema
+            nullable: true
+         hydration_advice:
+             $ref: '#/components/schemas/HydrationAdvice' # Reference HydrationAdvice schema
+             nullable: true
+       required:
+         - program_name
+         - program_goal
+         - program_description
+         - required_gear
+         - exercises
+         - workout_plan
+
+     Exercise: # Schema matching the Exercise TypeScript interface
+       type: object
+       properties:
+         exercise_name: { type: "string" }
+         exercise_type: { type: "string", enum: ["Basics", "Skill", "Static Hold", "Dynamic", "Stretch", "Mobility Drill", "Cardio", "Weighted", "Freestyle", "Other"] }
+         description: { type: "string" }
+         target_muscles: { type: "array", items: { type: "string" } }
+         video_url: { type: "string", format: "url", nullable: true }
+         progressions:
+            type: "array"
+            items:
+               $ref: '#/components/schemas/ExerciseProgression' # Reference ExerciseProgression schema
+            nullable: true
+       required: ["exercise_name", "exercise_type", "description", "target_muscles"]
+
+     ExerciseProgression: # Schema matching the ExerciseProgression TypeScript interface
+       type: object
+       properties:
+         level_name: { type: "string" }
+         description: { type: "string" }
+       required: ["level_name", "description"]
+
+     WorkoutDay: # Schema matching the WorkoutDay TypeScript interface
+       type: object
+       properties:
+         day: { type: "string" }
+         focus: { type: "string" }
+         routines:
+           type: "array"
+           items:
+             $ref: '#/components/schemas/Routine' # Reference Routine schema
+       required: ["day", "focus", "routines"]
+
+     Routine: # Schema matching the Routine TypeScript interface
+       type: object
+       properties:
+         routine_name: { type: "string" }
+         routine_type: { type: "string", enum: ["Standard Sets/Reps", "Circuit", "AMRAP", "EMOM", "Tabata", "Warm-up", "Cool-down", "Greasing the Groove Session", "Other"] }
+         duration: { type: "string", nullable: true }
+         notes: { type: "string", nullable: true }
+         exercises_in_routine:
+           type: "array"
+           items:
+             $ref: '#/components/schemas/ExerciseInRoutine' # Reference ExerciseInRoutine schema
+       required: ["routine_name", "routine_type", "exercises_in_routine"]
+
+     ExerciseInRoutine: # Schema matching the ExerciseInRoutine TypeScript interface
+       type: object
+       properties:
+         exercise_name: { type: "string" }
+         progression_level: { type: "string", nullable: true }
+         sets: { type: ["integer", "string"], nullable: true }
+         reps: { type: ["integer", "string"], nullable: true }
+         duration: { type: ["string", "integer"], nullable: true }
+         rest_after_exercise: { type: ["string", "integer"], nullable: true }
+         notes: { type: "string", nullable: true }
+       required: ["exercise_name"]
+
+     NutritionAdvice: # Schema matching the NutritionAdvice TypeScript interface
+       type: object
+       properties:
+         overview: { type: "string" }
+         key_principles:
+           type: "array"
+           items:
+             $ref: '#/components/schemas/NutritionPrinciple' # Reference NutritionPrinciple schema
+           nullable: true
+         macronutrients_guidelines:
+           $ref: '#/components/schemas/MacronutrientGuidelines' # Reference MacronutrientGuidelines schema
+           nullable: true
+         example_meal_plans:
+           type: "array"
+           items:
+             $ref: '#/components/schemas/MealPlan' # Reference MealPlan schema
+           nullable: true
+       required: ["overview"] # Assuming overview is required based on TS interface? Let's check TS. Yes, it is.
+
+     NutritionPrinciple: # Schema matching NutritionPrinciple interface
+       type: object
+       properties:
+         principle_name: { type: "string" }
+         description: { type: "string" }
+       required: ["principle_name", "description"]
+
+     MacronutrientGuidelines: # Schema matching MacronutrientGuidelines interface
+       type: object
+       properties:
+         calories: { type: "string" }
+         carbohydrates: { type: "string" }
+         protein: { type: "string" }
+         fats: { type: "string" }
+
+     MealPlan: # Schema matching MealPlan interface
+       type: object
+       properties:
+         plan_name: { type: "string" }
+         meals:
+           type: "array"
+           items:
+             $ref: '#/components/schemas/Meal' # Reference Meal schema
+       required: ["plan_name", "meals"]
+
+     Meal: # Schema matching Meal interface
+       type: object
+       properties:
+         time: { type: "string" }
+         meal_type: { type: "string" }
+         consumption: { type: "string" }
+       required: ["meal_type", "consumption"]
+
+     HydrationAdvice: # Schema matching the HydrationAdvice TypeScript interface
+       type: object
+       properties:
+          overview: { type: "string" }
+          recommended_intake: { type: "string" }
+       required: ["overview"] # Assuming overview is required based on TS interface? Yes, it is.
  */
 
 /**
@@ -299,6 +431,38 @@ const router = express.Router();
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
  */
+/**
+ * @openapi
+ * /api/workout-plans:
+ *   get:
+ *     summary: Get a list of all workout plans
+ *     description: Retrieves a list of all completed and saved workout plans from the database.
+ *     tags: [Workout Plans]
+ *     responses:
+ *       200:
+ *         description: A list of workout plans
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/WorkoutPlanCompleteResponse/properties/plan' # Assuming the list returns the full plan objects
+ *       500:
+ *         description: Server error during retrieval
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
+router.get("/", async (req, res, next) => {
+  try {
+    await listWorkoutPlans(req, res);
+  } catch (error) {
+    // Pass errors to the next middleware (the global error handler)
+    next(error);
+  }
+});
+
 router.post("/", async (req, res, next) => {
   try {
     await createWorkoutPlan(req, res);

@@ -3,6 +3,7 @@ import { generateWorkoutPlan } from "../services/workoutPlanService";
 import {
   saveWorkoutPlan,
   getWorkoutPlanById as getWorkoutPlanFromSupabase,
+  listWorkoutPlans as listWorkoutPlansService, // Import the new function with alias
 } from "../services/supabaseService";
 import { v4 as uuidv4 } from "uuid";
 import { emitWorkoutPlanProgress } from "../services/socketService";
@@ -53,6 +54,22 @@ export async function createWorkoutPlan(req: Request, res: Response) {
         error instanceof Error
           ? error.message
           : "An unknown error occurred while initiating workout plan generation",
+    });
+  }
+}
+
+export async function listWorkoutPlans(req: Request, res: Response) {
+  try {
+    const workoutPlans = await listWorkoutPlansService(); // Call the service function
+
+    // Return the list of plans
+    res.status(200).json(workoutPlans);
+  } catch (error) {
+    console.error("Error in listWorkoutPlans controller:", error);
+    // Handle potential errors during fetching from Supabase
+    res.status(500).json({
+      error: "Internal Server Error",
+      message: "An error occurred while retrieving workout plans",
     });
   }
 }

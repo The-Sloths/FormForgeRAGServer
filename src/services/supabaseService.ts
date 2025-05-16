@@ -37,6 +37,25 @@ export async function saveWorkoutPlan(workoutPlanResult: {
   }
 }
 
+export async function listWorkoutPlans() {
+  try {
+    const { data, error } = await supabase
+      .from("workout_plans")
+      .select("*")
+      .order("created_at", { ascending: false }); // Optional: Order by creation date
+
+    if (error) {
+      console.error("Error fetching workout plans from Supabase:", error);
+      throw new Error("Failed to fetch workout plans");
+    }
+
+    return data;
+  } catch (error) {
+    console.error("Error fetching workout plans:", error);
+    throw new Error("Failed to fetch workout plans");
+  }
+}
+
 export async function getWorkoutPlanById(planId: string) {
   try {
     const { data, error } = await supabase
