@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node dist/index.js",
     "dev": "nodemon src/index.ts",
-    "build": "tsc",
+    "build": "tsc && cp -r src/prompts dist/",
     "lint": "eslint src --ext .ts",
     "test": "jest",
     "generate-async-spec": "pnpm dlx ts-node scripts/generate-asyncapi.ts",
